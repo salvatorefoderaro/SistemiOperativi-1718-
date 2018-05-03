@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -27,6 +25,7 @@ void main(){
 			if(scelta == 1){
 				printf("Che nome vuoi dare al file da creare?\n");
 				scanf("%s", &nomeFile);
+				while((getchar()) != '\n');
 				descrittore = creat(&nomeFile, 0666);
 				if(descrittore == -1){
 					printf("Errore nella creazione del file!\n");
@@ -36,11 +35,13 @@ void main(){
 			if(scelta == 2){
 				printf("Da che posizione vuoi iniziare a scrivere all'interno del file?\n");
 				scanf("%d", &posizioneScrittura);
+				while((getchar()) != '\n');
 				printf("Cosa vuoi scrivere all'interno del file?\n");
 				if(lseek(descrittore, 0, posizioneScrittura) == -1){
 						printf("Posizionamento all'interno del file fallito!\n");
 				}
 				scanf("%s", &buffer);
+				while((getchar()) != '\n');
 				dimensioneScritta = write(descrittore, &buffer, strlen(&buffer));
 				if(dimensioneScritta == -1){
 					printf("Errore nella scrittura sul file!\n");
@@ -51,7 +52,7 @@ void main(){
 			{
 				printf("In che nuovo file vuoi copiare il contenuto del file aperto? (File esistente, nel caso di un file non esistente verrà creato automaticamnte!\n");
 				scanf("%s", &nomeNuovoFile);
-				
+				while((getchar()) != '\n');
 				descrittoreCopia = open(&nomeNuovoFile, O_CREAT | O_WRONLY, 0666);
 				if (descrittoreCopia == -1){
 					printf("Apertura del file di destinazione fallita!");
