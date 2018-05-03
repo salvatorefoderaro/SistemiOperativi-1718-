@@ -11,8 +11,6 @@ void *modificaAffinita(){
 	
 	int scelta; cpu_set_t c; pid_t pid;
 
-	
-
 	if (sched_getaffinity(0,sizeof(cpu_set_t),&c) == 0){
 	printf("\nCiao! Il tuo PID è %d! Scegli cosa fare.\nRimuovere tutte le CPU (0), aggiungerne solamente una (1), rimuoverne una (2) o vedere l'attuale maschera (3). Altrimenti inserisci (1000) per uscire!\n",getpid());
 
