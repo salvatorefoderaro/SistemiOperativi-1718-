@@ -18,6 +18,7 @@ void main(void){
 	char *parametro[] = {"hellouuu", "ciao", "a", "tuttiii"};
 	char *paramentro = "ciao";
 	pthread_t threadInfo; void *exit;
+	pthread_attr_t treadAttribute;
 	
  	pthread_create(&threadInfo, NULL, *thread, paramentro);
 	
