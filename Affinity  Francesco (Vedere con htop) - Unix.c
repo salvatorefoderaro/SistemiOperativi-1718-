@@ -6,7 +6,7 @@
 #include <sched.h>
 #include <sys/sysinfo.h>
 
-#define CICLES 100000
+#define CICLES 100
 
 
 void *foo(int time) {
