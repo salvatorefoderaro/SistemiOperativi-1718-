@@ -1,0 +1,18 @@
+Strutture dati:
+
+id_utente_loggato -> Necessario per controllare se un utente è loggato, ed in caso quale utente è loggato per controllare se può effettivamente procedere all'eliminazione di un messaggio
+
+struttura messaggi -> Sono necessari i sequenti campi:
+	int id_utente
+	int id_messaggio
+	char messaggio
+	char oggetto
+	char mittente
+
+struttura utente -> Sono necessari i seguenti campi:
+	int id_utente
+	char nome_utente
+	char password_utente
+	int messaggi_utente
+
+
