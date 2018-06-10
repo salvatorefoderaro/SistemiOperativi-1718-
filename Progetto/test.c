@@ -62,6 +62,28 @@ void *recupero_consistenza_informazioni(){
 	
 	}
 
+int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_utente){
+	
+	// Inserisco il nuovo messaggio
+	struct utente nuovo_utente;
+	
+	nuovo_utente.id_utente = id_utente;
+	strcpy(nuovo_utente.nome_utente, nome_utente);
+	strcpy(nuovo_utente.password_utente, password_utente);
+	
+	FILE *outfile;
+     
+    outfile = fopen ("user.dat", "a+");
+    if (outfile == NULL)
+    {
+        fprintf(stderr, "\nError opend file\n");
+        exit (1);
+    }
+     
+    fwrite (&nuovo_utente, sizeof(struct utente), 1, outfile);  
+    fclose(outfile);
+	}
+
 void visualizza_utenti(){
 	
 	FILE *infile;
@@ -259,28 +281,6 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
     fclose(outfile);
 
 	} 
- 
- int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_utente){
-	
-	// Inserisco il nuovo messaggio
-	struct utente nuovo_utente;
-	
-	nuovo_utente.id_utente = id_utente;
-	strcpy(nuovo_utente.nome_utente, nome_utente);
-	strcpy(nuovo_utente.password_utente, password_utente);
-	
-	FILE *outfile;
-     
-    outfile = fopen ("user.dat", "a+");
-    if (outfile == NULL)
-    {
-        fprintf(stderr, "\nError opend file\n");
-        exit (1);
-    }
-     
-    fwrite (&nuovo_utente, sizeof(struct utente), 1, outfile);  
-    fclose(outfile);
-	}
  
 int leggi_tutti_messaggi (void){
 
