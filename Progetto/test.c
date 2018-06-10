@@ -9,9 +9,7 @@
 #define fflush(stdin) while(getchar() != '\n')
 #define file_utenti "user.dat"
 #define file_messaggi "person.dat"
-#define file_consistenza "consistenz.dat"
 #define utente_non_loggato 		printf("\nOperazione non consentita! Devi effettuare prima l'accesso!\n\nPremi un tasto per continuare...");getchar(); 
-#define messaggio_non_loggato "\nOperazione non consentita! Devi effettuare prima l'accesso!\n"
  
 struct consistenza_informazioni {
 	int ultimo_id_messaggio;
@@ -118,8 +116,7 @@ void *gestore_utente(){
 	int valore_ritorno = 200;
 
 	while(1){
-	printf("\nIl valore di consistenza attuale è: %d\n", consistenza_sessione.ultimo_id_messaggio);
-	printf("\nQuale operazione vuoi eseguire?\n0 - Inserisci un nuovo messaggio\n1 - Leggi tutti i messaggi presenti\n2 - Effettua l'accesso al sistema\n3 - Elimina un messaggio\n4 - Termina l'esecuzione del programma\n\nInserisci il numero del comando che vuoi eseguire: ");
+	printf("\n\nQuale operazione vuoi eseguire?\n0 - Inserisci un nuovo messaggio\n1 - Leggi tutti i messaggi presenti\n2 - Effettua l'accesso al sistema\n3 - Elimina un messaggio\n4 - Termina l'esecuzione del programma\n\nInserisci il numero del comando che vuoi eseguire: ");
 		
 	scanf("%d", &scelta);
 	while(getchar() != '\n');
@@ -128,11 +125,9 @@ void *gestore_utente(){
 	
 	if(utente_loggato.id_utente_loggato != 0){
 		printf("Quale messaggio vuoi inserire?\n");
-		gets(messaggio);
-		fflush(stdin);
+		fgets(messaggio, 512, stdin);
 		printf("Quale oggetto vuoi inserire?\n");
-		gets(oggetto);
-		fflush(stdin);
+		fgets (oggetto, 128, stdin);
 		inserisci_nuovo_messaggio(messaggio, oggetto, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato);
 		break;
 	}
@@ -255,9 +250,8 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	if(utente_loggato.id_utente_loggato == 0){
 		utente_non_loggato
 		return -1;
-		}
+	}
 	
-	printf("Il codice dell'utente che vado ad inserire è: %d", id_utente_loggato);
 	// Inserisco il nuovo messaggio
 	struct messaggi nuovo_messaggio;
 	nuovo_messaggio.id_utente = id_utente_loggato;
@@ -321,7 +315,10 @@ int main (int argc, char **argv){
 	
 	
 	pthread_t thread1, thread2;
-	pthread_create(&thread2, NULL, recupero_consistenza_informazioni, NULL);
+	if (pthread_create(&thread2, NULL, recupero_consistenza_informazioni, NULL) != 0){
+			printf("Errore nella creazione del thread!\n");
+			return -1;
+		}
 	pthread_join(thread2, NULL);
 	
 	pthread_create(&thread1, NULL, gestore_utente, NULL);
