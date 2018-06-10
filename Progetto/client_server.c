@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #define fflush(stdin) while(getchar() != '\n')
 #define file_utenti "user.dat"
-#define file_messaggi "person.dat"
+#define file_messaggi "messages.dat"
 #define utente_non_loggato 		printf("\nOperazione non consentita! Devi effettuare prima l'accesso!\n\nPremi un tasto per continuare...");getchar(); 
  
 struct consistenza_informazioni {
@@ -211,7 +211,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
         
     fclose(leggo);
     unlink("person.dat");
-    link("passaggio.dat", "person.dat");
+    link("passaggio.dat", file_messaggi);
     fclose(scrivo);
 	unlink("passaggio.dat");
     return 0;
@@ -262,7 +262,7 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	
 	FILE *outfile;
      
-    outfile = fopen ("person.dat", "a+");
+    outfile = fopen (file_messaggi, "a+");
     if (outfile == NULL)
     {
         fprintf(stderr, "\nErrore nell'apertura del file\n");
@@ -280,7 +280,7 @@ int leggi_tutti_messaggi (void){
 
     FILE *infile;
     struct messaggi input;
-    infile = fopen ("person.dat", "r");
+    infile = fopen (file_messaggi, "r");
     if (infile == NULL)
     {
         fprintf(stderr, "\nErrore nell'apertura del file\n");
