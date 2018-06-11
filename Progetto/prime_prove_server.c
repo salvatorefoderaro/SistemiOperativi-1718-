@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +6,6 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sched.h>
 #define fflush(stdin) while(getchar() != '\n')
 #define file_utenti "user.dat"
 #define file_messaggi "messages.dat"
@@ -19,7 +17,6 @@
  *	-2 | Effettua prima log-in
  *	-3 | Nome utente e Password non trovati
  *	-4 | Nessun messaggio presente
- * 	-5 | Accesso già effettuato
  * 
  *	Codice operazione:
  *	1 | Effettua accesso -> Argomento1: nome_utente | Argomento2: password
@@ -27,6 +24,13 @@
  * 	3 | Rimuovi messaggio -> Argomento1: id_messaggio | Argomento2: NULL
  * 	4 | Leggi tutti i messaggi -> Argomento1: NULL | Argomento2: NULL
  */ 
+ 
+struct comunicazione {
+	int operazione;
+	int valore_ritorno;
+	char argomento1[512];
+	char argomento2[512];
+	};
  
 struct consistenza_informazioni {
 	int ultimo_id_messaggio;
@@ -57,6 +61,7 @@ __thread struct sessione utente_loggato;
 sem_t semaforo;
 
 void *recupero_consistenza_informazioni(){
+	
 	FILE *infile;
     struct messaggi recupero;
     
@@ -66,9 +71,9 @@ void *recupero_consistenza_informazioni(){
 		consistenza_sessione.ultimo_id_messaggio = 0;
 		return(-1);
     }
+
     fseek(infile, -(sizeof(struct messaggi)), SEEK_END);
 	fread(&recupero, sizeof(struct messaggi), 1, infile);
-	
     consistenza_sessione.ultimo_id_messaggio = recupero.id_messaggio;
     fclose(infile);
     
@@ -90,7 +95,7 @@ int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_uten
     if (outfile == NULL)
     {
         fprintf(stderr, "\nError opend file\n");
-        return -1;
+        return -1
     }
      
     fwrite (&nuovo_utente, sizeof(struct utente), 1, outfile);  
@@ -114,92 +119,60 @@ void visualizza_utenti(){
     }
     fclose(infile);
     return 0;
-	}
 	
-void *thread_controllo(){
-	// Riservo il Thread 0 per operazioni di controllo/gestione da parte dell'admin del server
-	cpu_set_t c;
-	sched_getaffinity(0,sizeof(cpu_set_t), &c);
-	CPU_ZERO(&c);
-	CPU_SET(0, &c);
-	sched_setaffinity(0,sizeof(cpu_set_t), &c);
 	}
 
 void *gestore_utente(){
-	// Tutti i thred verranno eseguiti su tutte le CPU tranne che sulla 0
-	cpu_set_t c;
-	sched_getaffinity(0,sizeof(cpu_set_t),&c);
-	CPU_CLR(0, &c);
-	sched_setaffinity(0,sizeof(cpu_set_t), &c);
 	
-	utente_loggato.id_utente_loggato = 0;
-	
-	char messaggio[512];
-	char oggetto[128];
-	char mittente[64];
-	char nome_utente[64];
-	char password_utente[64];
-	int scelta;
-	int valore_vario;
-	int valore_ritorno = 200;
-
-	while(1){
-	printf("\n\nQuale operazione vuoi eseguire?\n0 - Inserisci un nuovo messaggio\n1 - Leggi tutti i messaggi presenti\n2 - Effettua l'accesso al sistema\n3 - Elimina un messaggio\n4 - Termina l'esecuzione del programma\n\nInserisci il numero del comando che vuoi eseguire: ");
+	int scelta, valore_ritorno, uscita_thread;
+	struct comunicazione ricezione;
 		
-	scanf("%d", &scelta);
-	while(getchar() != '\n');
+while((read_size = recv(client_sock , &ricezione, sizeof(struct comunicazione), 0)) > 0 )
+    {
+	scelta = ricezione.operazione;
 	switch (scelta) {
-	case 0:
-	
+		
+	case 0: // Inserisci nuovo messaggio
+	// Se l'utente è loggato procedo
 	if(utente_loggato.id_utente_loggato != 0){
-		printf("Quale messaggio vuoi inserire?\n");
-		fgets(messaggio, 512, stdin);
-		printf("Quale oggetto vuoi inserire?\n");
-		fgets (oggetto, 128, stdin);
-		inserisci_nuovo_messaggio(messaggio, oggetto, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato);
+		valore_ritorno = inserisci_nuovo_messaggio(ricezione.argomento1, ricezione.argomento2, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato);
+		write(client_sock, &valore_ritorno, sizeof(int));
 		break;
 	}
 	else
 	{
-		utente_non_loggato
+	// Se l'utente non è loggato devo scrivere un valore di ritorno differente
+		valore_ritorno = ;
+		write(client_sock, &valore_ritorno, sizeof(int));
 		break;
 	}
 	
 	case 1:
-	
-	leggi_tutti_messaggi();
-	break;
-	
-	case 2:
-	
-	printf("\nInserisci il nome utente\n");
-	scanf("%s", nome_utente);
-	printf("Inserisci la password\n");
-	scanf("%s", password_utente);
-	utente_loggato.id_utente_loggato = controllo_accesso(nome_utente, password_utente);
-	if(utente_loggato.id_utente_loggato > 0){
-		strcpy(utente_loggato.nome_utente_loggato, nome_utente);
+		leggi_tutti_messaggi();
 		break;
-	}
-	else
-	{
-		printf("\nErrore nella procedura di log-in!\n");
+	
+	case 2: // Login
+		valore_ritorno = controllo_accesso(ricezione.argomento1, ricezione.argomento2);
+		write(client_sock, &valore_ritorno, sizeof(int));
 		break;
-	};
-	case 3:
+
+	case 3:	// Elimina messaggio
+		// Se l'utente è loggato procedo
 		if(utente_loggato.id_utente_loggato != 0){
-			printf("\nQuale messaggio vuoi eliminare?\n");
-			scanf("%d", &valore_vario);
-			fflush(stdin);
-			elimina_messaggio(utente_loggato.id_utente_loggato, valore_vario);
+			valore_ritorno = elimina_messaggio(utente_loggato.id_utente_loggato, ricezione.argomento1);
+			write(client_sock, &valore_ritorno, sizeof(int));
 			break;
 		}
-		else{
-		utente_non_loggato
+		else
+		{
+		// Se l'utente non è loggato allora devo scrivere un valore di ritorno differente
+			valore_ritorno = ;
+			write(client_sock, &valore_ritorno, sizeof(int));
 			break;
 		}
+		
 	case 4:
-		pthread_exit(&valore_ritorno);
+		pthread_exit(&uscita_thread);
 	}
 	}
 	}
@@ -249,7 +222,7 @@ int controllo_accesso(char *nome_utente, char *password){
 	
 	if(utente_loggato.id_utente_loggato != 0){
 		printf("Un utente è già collegato tramite questo thread!");
-		return -5;
+		return -1;
 		}
 
 	FILE *infile;
@@ -304,7 +277,7 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 
 	} 
  
-int leggi_tutti_messaggi (void){
+int leggi_tutti_messaggi(void){
 
     FILE *infile;
     struct messaggi input;
@@ -354,3 +327,4 @@ int main (int argc, char **argv){
 	return 0;
 	
 }
+
