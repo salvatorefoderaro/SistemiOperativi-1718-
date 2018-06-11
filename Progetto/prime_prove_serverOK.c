@@ -1,13 +1,3 @@
-/*
-    C socket server example
-*/
- 
-#include<stdio.h>
-#include<string.h>    //strlen
-#include<sys/socket.h>
-#include<arpa/inet.h> //inet_addr
-#include<unistd.h>    //write
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,7 +95,7 @@ int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_uten
     if (outfile == NULL)
     {
         fprintf(stderr, "\nError opend file\n");
-        return -1;
+        return -1
     }
      
     fwrite (&nuovo_utente, sizeof(struct utente), 1, outfile);  
@@ -132,12 +122,12 @@ void visualizza_utenti(){
 	
 	}
 
-void *gestore_utente(void *socket){
+void *gestore_utente(){
 	
-	int scelta, valore_ritorno, uscita_thread; int read_size;
+	int scelta, valore_ritorno, uscita_thread;
 	struct comunicazione ricezione;
 		
-while((read_size = recv(socket , &ricezione, sizeof(struct comunicazione), 0)) > 0 )
+while((read_size = recv(client_sock , &ricezione, sizeof(struct comunicazione), 0)) > 0 )
     {
 	scelta = ricezione.operazione;
 	switch (scelta) {
@@ -146,14 +136,14 @@ while((read_size = recv(socket , &ricezione, sizeof(struct comunicazione), 0)) >
 	// Se l'utente è loggato procedo
 	if(utente_loggato.id_utente_loggato != 0){
 		valore_ritorno = inserisci_nuovo_messaggio(ricezione.argomento1, ricezione.argomento2, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato);
-		write(socket, &valore_ritorno, sizeof(int));
+		write(client_sock, &valore_ritorno, sizeof(int));
 		break;
 	}
 	else
 	{
 	// Se l'utente non è loggato devo scrivere un valore di ritorno differente
-		valore_ritorno = -20;
-		write(socket, &valore_ritorno, sizeof(int));
+		valore_ritorno = ;
+		write(client_sock, &valore_ritorno, sizeof(int));
 		break;
 	}
 	
@@ -163,27 +153,25 @@ while((read_size = recv(socket , &ricezione, sizeof(struct comunicazione), 0)) >
 	
 	case 2: // Login
 		valore_ritorno = controllo_accesso(ricezione.argomento1, ricezione.argomento2);
-		write(socket, &valore_ritorno, sizeof(int));
+		write(client_sock, &valore_ritorno, sizeof(int));
 		break;
 
 	case 3:	// Elimina messaggio
 		// Se l'utente è loggato procedo
 		if(utente_loggato.id_utente_loggato != 0){
 			valore_ritorno = elimina_messaggio(utente_loggato.id_utente_loggato, ricezione.argomento1);
-			write(socket, &valore_ritorno, sizeof(int));
+			write(client_sock, &valore_ritorno, sizeof(int));
 			break;
 		}
 		else
 		{
 		// Se l'utente non è loggato allora devo scrivere un valore di ritorno differente
-			valore_ritorno = -20;
-			write(socket, &valore_ritorno, sizeof(int));
+			valore_ritorno = ;
+			write(client_sock, &valore_ritorno, sizeof(int));
 			break;
 		}
 		
 	case 4:
-		close(socket);
-		puts("Client disconnected!");
 		pthread_exit(&uscita_thread);
 	}
 	}
@@ -313,10 +301,8 @@ int leggi_tutti_messaggi(void){
     return 0;
 	} 
  
-int main(int argc , char *argv[])
-{
-	
-		if (argc > 1){
+int main (int argc, char **argv){
+	if (argc > 1){
 	if (strcmp(argv[1], "-seeuser") == 0){
 		visualizza_utenti();
 		return 0;
@@ -327,53 +313,18 @@ int main(int argc , char *argv[])
 		return 0;
 		}
 	}
-    int socket_desc , socket_cliente , c , read_size;
-    struct sockaddr_in server , client;
-    char client_message[2000];
-    pthread_t thread;
-     
-    //Create socket
-    socket_desc = socket(AF_INET , SOCK_STREAM , 0);
-    if (socket_desc == -1)
-    {
-        printf("Could not create socket");
-    }
-    puts("Socket created");
-     
-    //Prepare the sockaddr_in structure
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 6000 );
-     
-    //Bind
-    if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
-    {
-        //print the error message
-        perror("bind failed. Error");
-        return 1;
-    }
-    puts("bind done");
-     
-    //Listen
-    listen(socket_desc , 3);
-     
-    //Accept and incoming connection
-    puts("Waiting for incoming connections...");
-    c = sizeof(struct sockaddr_in);
-     
-    //accept connection from an incoming client
-    while(1){
-    socket_cliente = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-    if (socket_cliente < 0)
-    {
-        perror("accept failed");
-        return 1;
-    }
-    puts("Connection accepted");
-    
-    pthread_create(&thread, NULL, gestore_utente, socket_cliente);
-
-    }
-     
-    return 0;
+	
+	
+	pthread_t thread1, thread2;
+	if (pthread_create(&thread2, NULL, recupero_consistenza_informazioni, NULL) != 0){
+			printf("Errore nella creazione del thread!\n");
+			return -1;
+		}
+	pthread_join(thread2, NULL);
+	
+	pthread_create(&thread1, NULL, gestore_utente, NULL);
+	pthread_join(thread1, NULL);
+	return 0;
+	
 }
+
