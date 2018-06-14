@@ -73,15 +73,23 @@ int main(int argc , char *argv[])
 			printf("Errore nella ricezione!\n");
 			break;
 		}
-		if(valore_ritorno == -20){
-			printf("Effettuare prima l'accesso!\nPremi un testo per continuare...");
-			getchar();
+		if(valore_ritorno == -2){
+			printf("Effettua prima l'accesso!");
+			break;
+		}
+		if(valore_ritorno == -1){
+			printf("Errore nell'apertura del file");
 			break;
 			}
-		break;
+		if(valore_ritorno == -4){
+			printf("Errore nella scrittura del file");
+			break;
+			}
+		
+		
 	
 	case 1:
-		// leggi_tutti_messaggi();	
+		// leggi_tutti_messaggi();
 			
 	case 2: // Login
 		session.operazione = 2;
@@ -106,8 +114,18 @@ int main(int argc , char *argv[])
 			break;
 			}
 
-		if (valore_ritorno < 0){
-			printf("Errore da qualche parte!");
+		if (valore_ritorno == -1){
+			printf("Errore nell'apertura del file!");
+			break;
+			}
+			
+					if (valore_ritorno == -3){
+			printf("Combinazione nome utente e password non trovate!");
+			break;
+			}
+			
+					if (valore_ritorno == -5){
+			printf("Login già effettuato!");
 			break;
 			}
 	

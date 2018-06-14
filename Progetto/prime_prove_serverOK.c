@@ -166,7 +166,7 @@ while((read_size = recv(client_sock , &ricezione, sizeof(struct comunicazione), 
 		else
 		{
 		// Se l'utente non è loggato allora devo scrivere un valore di ritorno differente
-			valore_ritorno = ;
+			valore_ritorno = -2;
 			write(client_sock, &valore_ritorno, sizeof(int));
 			break;
 		}
@@ -222,7 +222,7 @@ int controllo_accesso(char *nome_utente, char *password){
 	
 	if(utente_loggato.id_utente_loggato != 0){
 		printf("Un utente è già collegato tramite questo thread!");
-		return -1;
+		return -5;
 		}
 
 	FILE *infile;
@@ -271,7 +271,7 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
     }
      
     if (fwrite(&nuovo_messaggio, sizeof(struct messaggi), 1, outfile) < 0){
-		fprintf(stderr, "\nErrore nella scrittura su file!\n");
+		return -4;
 		}  
     fclose(outfile);
 
