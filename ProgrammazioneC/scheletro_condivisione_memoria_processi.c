@@ -34,4 +34,9 @@ int main(void){
 	for (int j = 0; j < numChild; j++){
 		wait(&return_value);
 	}
+	
+	// Libero la memoria alla fine 	
+	munmap(buffer, 1024);
+
 }
+
