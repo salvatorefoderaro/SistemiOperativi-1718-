@@ -8,7 +8,7 @@
 
 void stampa_valori(struct lista **primo_elemento){
 
-	// Scorro la lista e stampo tutti i valori presenti
+	// Scorro la lista e stampo tutti i valori presentia
 
 	struct lista *supporto = (*primo_elemento);
 	printf("Il valore è: %d\n", supporto->valore);
@@ -21,8 +21,8 @@ void stampa_valori(struct lista **primo_elemento){
 
 }
 
-int inserimento_ordinato(struct lista **primo_elemento, int valore_inserire){
-	
+void inserimento_ordinato(struct lista **primo_elemento, int valore_inserire){
+
 	// Creo una struttura di supporto
 
 	struct lista *nuovo_elemento = malloc(sizeof(struct lista));
@@ -34,7 +34,7 @@ int inserimento_ordinato(struct lista **primo_elemento, int valore_inserire){
 	if (valore_inserire <= (*primo_elemento)->valore){
 		nuovo_elemento->next = *primo_elemento;
 		*primo_elemento = nuovo_elemento;
-		return 1;
+		return;
 	}
 
 	// Controllo se il nuovo elemento va inserito tra due elementi	
@@ -45,7 +45,7 @@ int inserimento_ordinato(struct lista **primo_elemento, int valore_inserire){
 				if (valore_inserire > supporto->valore && valore_inserire <= supporto->next->valore){
 				nuovo_elemento->next = supporto->next;
 				supporto->next = nuovo_elemento;
-				return 1;
+				return;
 			}
 		// Controllo l'elemento successivo
 		supporto = supporto->next;
