@@ -35,7 +35,6 @@ int operazioni_file_testo(void){
 	// tutte le operazioni che mi servono
 	while(getline(&buffer, &len, fileDaUsare)){
 		// All'interno di 'buffer' vengono caricate le linee di testo lette all'interno del file	
-
 	}
 	fclose(fileDaUsare);
 	return 0;
