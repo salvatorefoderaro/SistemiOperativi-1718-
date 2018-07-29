@@ -5,10 +5,11 @@
 #include <string.h>    //strlen
 #include <sys/socket.h>    //socket
 #include <arpa/inet.h> //inet_addr
-#define doppio_login "Il login è stato già effettuato!"
-#define errore_sessione "Per eseguire quest'operazione, effettua prima l'accesso!"
-#define errore_login "Username o password errati!"
-#define errore_comunicazione "Errore nella comunicazione con il server!"
+#define fflush(stdin) while(getchar() != '\n')
+#define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n"
+#define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n"
+#define errore_login "\n    *****    Username o password errati!    *****\n"
+#define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n"
 
 	struct comunicazione {
 	int operazione;
@@ -43,7 +44,7 @@ void login(int sock){
 			printf(errore_comunicazione);
 		}
 		if (valore_ritorno > 0){
-			printf("\nAccesso effettuato correttamente!\n");
+			printf("\n    *****    Accesso effettuato correttamente!    *****\n");
 			return;
 			}
 
@@ -58,7 +59,7 @@ void login(int sock){
 			}
 			
 		else{
-			printf("\nErrore nella richiesta. Codice di errore: %d\n", valore_ritorno);
+			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
 			return;
 			}
 	
@@ -75,24 +76,25 @@ void insert_message(int sock){
 		if(send(sock, &session, sizeof(struct comunicazione) , 0) < 0)
 		{
 			printf(errore_comunicazione);   
-			exit(-1);
+			return;
 		}
 		if(recv(sock , &valore_ritorno , sizeof(int) , 0) < 0)
 		{
 			printf(errore_comunicazione);
-			exit(-1);
+			return;
 		}
 		if(valore_ritorno == -2){
 			printf(errore_sessione);
-			exit(-1);}
+			return;
+			}
 			
 		if(valore_ritorno > 0){
-			printf("\nIl messaggio è stato inserito correttamente!\n");
+			printf("\n    *****    Il messaggio è stato inserito correttamente!    *****\n");
 			return;
 
 		}
 		else{
-			printf("\nErrore nella richiesta. Codice di errore: %d\n", valore_ritorno);
+			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
 			return;
 			}
 	}
@@ -103,10 +105,11 @@ void delete_message(int sock){
 		session.operazione = 3;
 		printf("\nQuale messaggio vuoi eliminare?\n");
 		scanf("%d", &(session.valore_ritorno));
-		
-		if(send(sock, &session, sizeof(struct comunicazione) , 0) < 0)
+		fflush(stdin);
+		int size;
+		if(size = (send(sock, &session, sizeof(struct comunicazione) , 0)) < 0)
 		{
-			printf(errore_comunicazione);
+			printf(errore_comunicazione);	
 			return;
 		}
 		
@@ -114,21 +117,33 @@ void delete_message(int sock){
 		{
 			printf(errore_comunicazione);
 			return;
-
 		}
 		if (valore_ritorno > 0){
-			printf(\n"\nMessaggio eliminato correttamente!\n");
+			printf("\n    *****    Messaggio eliminato correttamente!    *****\n");
 			return;
 
 		}
 		if (valore_ritorno == -2){
 			printf(errore_sessione);
 			return;
-
+		}
+		if (valore_ritorno == -6){
+			printf("\n    *****    Nessun messaggio presente!    *****\n");
+			return;
+		}
+		
+		if (valore_ritorno == -8){
+			printf("\n    *****    Il messaggio che vuoi eliminare non è presente!    *****\n");
+			return;
+		}
+		
+		if (valore_ritorno == -9){
+			printf("\n    *****    Non hai il permesso per eliminare il messaggio!    *****\n");
+			return;
 		}
 			
 		else{
-			printf("\nErrore nella richiesta. Codice di errore: %d\n", valore_ritorno);
+			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
 			return;
 		}
 	}
@@ -150,13 +165,15 @@ void see_all_messages(int sock){
 		int dimensione;
 		recv(sock , &dimensione , sizeof(int), 0);
 		if (dimensione == 0){
-				printf("\nNessun messaggio presente!\n");
+				printf("\n    *****    Nessun messaggio presente!    *****\n");
 			}
 		while(dimensione > 0)
 		{
 		test  = recv(sock , &input , sizeof(struct messaggi) , 0);
 		dimensione = dimensione - test;
-		printf ("\nMessaggio numero: %d  | Mittente messaggio: %s | Oggetto messaggio: %s\n\n%s\n", input.id_messaggio, input.mittente, input.oggetto, input.messaggio);
+		printf("\n          ********************\n");
+		printf ("\nMessaggio numero: %d  | Mittente messaggio: %s | Oggetto messaggio: %s\n%s\n", input.id_messaggio, input.mittente, input.oggetto, input.messaggio);
+		printf("          ********************\n");
 		valore_ritorno = 1;
 		if(send(sock, &valore_ritorno, sizeof(int) , 0) < 0)
 			{
@@ -181,7 +198,7 @@ int main(int argc , char *argv[])
         printf("Could not create socket");
     }
      
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server.sin_addr.s_addr = inet_addr("151.29.60.105");
     server.sin_family = AF_INET;
     server.sin_port = htons( 6000 );
  
@@ -194,17 +211,17 @@ int main(int argc , char *argv[])
      
     printf("\n\nConnessione effettuata correttamente, benvenuto nel sistema!");
 	while(1){
-	printf("\nQuale operazione vuoi eseguire?\n0 - Effettua l'accesso al sistema\n1 - Leggi tutti i messaggi presenti\n2 - Inserisci un nuovo messaggio\n3 - Elimina un messaggio\nQuale operazione vuoi eseguire?\n");
+	printf("\n0 - Effettua l'accesso al sistema\n1 - Leggi tutti i messaggi presenti\n2 - Inserisci un nuovo messaggio\n3 - Elimina un messaggio\n4 - Termina esecuzione programma\n\nQuale operazione vuoi eseguire?\n");
 		
 	scanf("%d", &scelta);
-	while(getchar() != '\n');
+	fflush(stdin);
 	switch (scelta) {
 	
 	case 0: // Login
 		login(sock);
 		break;
 	
-	case 1:
+	case 1: // Leggi tutti i messaggi presenti
 		see_all_messages(sock);
 		break;
 	
