@@ -44,20 +44,21 @@ void login(int sock){
 		printf("\nInserisci la password\n");
 		scanf("%s", session.argomento2);
 		char *toSend = encode(&session);
+		
 		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
 		{
 			printf(errore_comunicazione);
-                        free(toSend);
-                        exit(-1);
-
+			free(toSend);
+			exit(-1);
 		}
-                free(toSend);
+		free(toSend);
+		
 		if(recv(sock, &valore_ritorno , sizeof(int) , 0) < 1)
 		{
 			printf(errore_comunicazione);
-                        exit(-1);
-                        
+			exit(-1);     
 		}
+		
 		if (valore_ritorno > 0){
 			printf("\n    *****    Accesso effettuato correttamente!    *****\n");
 			return;
@@ -81,139 +82,138 @@ void login(int sock){
 	}
 
 void insert_message(int sock){
-		struct comunicazione session;
-		int valore_ritorno;
-		session.operazione = 2;
-		printf("\nQuale messaggio vuoi inserire?\n");
-		fgets(session.argomento1, 512, stdin);
-		printf("\nQuale oggetto vuoi inserire?\n");
-		fgets (session.argomento2, 128, stdin);
-		char *toSend = encode(&session);
-		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
-		{
-			printf(errore_comunicazione); 
-                                        free(toSend);
-                                            exit(-1);
-		}
-                free(toSend);
-		if(recv(sock , &valore_ritorno , sizeof(int) , 0) < 1)
-		{
-			printf(errore_comunicazione);
-                                            exit(-1);
-		}
-		if(valore_ritorno == -2){
-			printf(errore_sessione);
-			return;
-			}
-			
-		if(valore_ritorno > 0){
-			printf("\n    *****    Il messaggio è stato inserito correttamente!    *****\n");
-			return;
-
-		}
-		else{
-			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
-			return;
-			}
+	struct comunicazione session;
+	int valore_ritorno;
+	session.operazione = 2;
+	printf("\nQuale messaggio vuoi inserire?\n");
+	fgets(session.argomento1, 512, stdin);
+	printf("\nQuale oggetto vuoi inserire?\n");
+	fgets (session.argomento2, 128, stdin);
+	char *toSend = encode(&session);
+	if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
+	{
+		printf(errore_comunicazione); 
+		free(toSend);
+		exit(-1);
 	}
+	free(toSend);
+	if(recv(sock , &valore_ritorno , sizeof(int) , 0) < 1)
+	{
+		printf(errore_comunicazione);
+		exit(-1);
+	}
+	if(valore_ritorno == -2){
+		printf(errore_sessione);
+		return;
+	}
+		
+	if(valore_ritorno > 0){
+		printf("\n    *****    Il messaggio è stato inserito correttamente!    *****\n");
+		return;
+	}
+	else{
+		printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+		return;
+	}
+}
 
 void delete_message(int sock){
-		struct comunicazione session;
-		int valore_ritorno;
-		session.operazione = 3;
-		printf("\nQuale messaggio vuoi eliminare?\n");
-		scanf("%d", &(session.valore_ritorno));
-		fflush(stdin);
-                strcpy(session.argomento1, "NULL");
-                strcpy(session.argomento2, "NULL");
-		int size;
-		char *toSend = encode(&session);
-		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
-		{
-			printf(errore_comunicazione);	
-                                        free(toSend);
-                                            exit(-1);
-		}
+	struct comunicazione session;
+	int valore_ritorno;
+	session.operazione = 3;
+	printf("\nQuale messaggio vuoi eliminare?\n");
+	scanf("%d", &(session.valore_ritorno));
+	fflush(stdin);
+	strcpy(session.argomento1, "NULL");
+	strcpy(session.argomento2, "NULL");
+	int size;
+	char *toSend = encode(&session);
+	if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
+	{
+		printf(errore_comunicazione);	
 		free(toSend);
+		exit(-1);
+	}
+	free(toSend);
 
-		if( recv(sock , &valore_ritorno , sizeof(int) , 0) < 1)
-		{
-			printf(errore_comunicazione);
-                                            exit(-1);
-		}
-		if (valore_ritorno > 0){
-			printf("\n    *****    Messaggio eliminato correttamente!    *****\n");
-			return;
-
-		}
-		if (valore_ritorno == -2){
-			printf(errore_sessione);
-			return;
-		}
-		if (valore_ritorno == -6){
-			printf("\n    *****    Nessun messaggio presente!    *****\n");
-			return;
-		}
-		
-		if (valore_ritorno == -8){
-			printf("\n    *****    Il messaggio che vuoi eliminare non è presente!    *****\n");
-			return;
-		}
-		
-		if (valore_ritorno == -9){
-			printf("\n    *****    Non hai il permesso per eliminare il messaggio!    *****\n");
-			return;
-		}
-			
-		else{
-			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
-			return;
-		}
+	if( recv(sock , &valore_ritorno , sizeof(int) , 0) < 1)
+	{
+		printf(errore_comunicazione);
+		exit(-1);
+	}
+	if (valore_ritorno > 0){
+		printf("\n    *****    Messaggio eliminato correttamente!    *****\n");
+		return;
 	}
 	
-void see_all_messages(int sock){
-		struct comunicazione session;
-		struct messaggi input;
-		session.operazione = 1;
-		session.valore_ritorno = 0;
-                strcpy(session.argomento1, "NULL");
-                strcpy(session.argomento2, "NULL");
-		int valore_ritorno;
-		int test;
-		char *toSend = encode(&session);
-		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
-		{
-                    printf(errore_comunicazione); 
-                    free(toSend);
-                    exit(-1);
-		}
-                
-                free(toSend);
-		int dimensione;
-		recv(sock , &dimensione , sizeof(int), 0);
-		if (dimensione == 0){
-                    printf("\n    *****    Nessun messaggio presente!    *****\n");
-			}
-		while(dimensione > 0)
-		{
-		test  = recv(sock , &input , sizeof(struct messaggi) , 0);
-                if (test < 1){
-                    printf(errore_comunicazione);
-                    exit(-1);
-                }
-		dimensione = dimensione - test;
-		printf("\n          ********************\n");
-		printf ("\nMessaggio numero: %d  | Mittente messaggio: %s | Oggetto messaggio: %s\n%s\n", input.id_messaggio, input.mittente, input.oggetto, input.messaggio);
-		printf("          ********************\n");
-		valore_ritorno = 1;
-		if(send(sock, &valore_ritorno, sizeof(int) , 0) < 1)
-			{
-			printf(errore_comunicazione);   
-			exit(-1);
-			}
-			}
-	return;
+	if (valore_ritorno == -2){
+		printf(errore_sessione);
+		return;
 	}
+	
+	if (valore_ritorno == -6){
+		printf("\n    *****    Nessun messaggio presente!    *****\n");
+		return;
+	}
+	
+	if (valore_ritorno == -8){
+		printf("\n    *****    Il messaggio che vuoi eliminare non è presente!    *****\n");
+		return;
+	}
+	
+	if (valore_ritorno == -9){
+		printf("\n    *****    Non hai il permesso per eliminare il messaggio!    *****\n");
+		return;
+	}
+		
+	else{
+		printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+		return;
+	}
+}
+	
+void see_all_messages(int sock){
+	struct comunicazione session;
+	struct messaggi input;
+	session.operazione = 1;
+	session.valore_ritorno = 0;
+	strcpy(session.argomento1, "NULL");
+	strcpy(session.argomento2, "NULL");
+	int valore_ritorno;
+	int test;
+	char *toSend = encode(&session);
+	if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
+	{
+		printf(errore_comunicazione); 
+		free(toSend);
+		exit(-1);
+	}
+			
+	free(toSend);
+	int dimensione;
+	recv(sock , &dimensione , sizeof(int), 0);
+	if (dimensione == 0){
+		printf("\n    *****    Nessun messaggio presente!    *****\n");
+	}
+	while(dimensione > 0)
+	{
+		test  = recv(sock , &input , sizeof(struct messaggi) , 0);
+		if (test < 1){
+		printf(errore_comunicazione);
+		exit(-1);
+	}
+	dimensione = dimensione - test;
+	printf("\n          ********************\n");
+	printf ("\nMessaggio numero: %d  | Mittente messaggio: %s | Oggetto messaggio: %s\n%s\n", input.id_messaggio, input.mittente, input.oggetto, input.messaggio);
+	printf("          ********************\n");
+	valore_ritorno = 1;
+	if(send(sock, &valore_ritorno, sizeof(int) , 0) < 1){
+		printf(errore_comunicazione);   
+		exit(-1);
+	}
+	}
+	return;
+}
  
 int main(int argc , char *argv[])
 {
