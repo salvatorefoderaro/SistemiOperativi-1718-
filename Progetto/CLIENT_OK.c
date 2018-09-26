@@ -5,11 +5,12 @@
 #include <string.h>    //strlen
 #include <sys/socket.h>    //socket
 #include <arpa/inet.h> //inet_addr
+#include <signal.h>
 #define fflush(stdin) while(getchar() != '\n')
 #define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n"
 #define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n"
 #define errore_login "\n    *****    Username o password errati!    *****\n"
-#define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n"
+#define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
 
 	struct comunicazione {
 	int operazione;
@@ -26,6 +27,14 @@
 	char mittente[64];
 	};
 	
+char *encode(struct comunicazione *struttura){
+
+    char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
+    sprintf(buffer, "%d|%d|%s|%s", htons(struttura->operazione), htons(struttura->valore_ritorno),struttura->argomento1, struttura->argomento2);
+    return buffer;
+    
+}       
+        
 void login(int sock){
 		struct comunicazione session;
 		int valore_ritorno;
@@ -34,14 +43,20 @@ void login(int sock){
 		scanf("%s", session.argomento1);
 		printf("\nInserisci la password\n");
 		scanf("%s", session.argomento2);
-		
-		if(send(sock, &session, sizeof(struct comunicazione) , 0) < 0)
-		{
-			printf(errore_comunicazione);   
-		}
-		if(recv(sock, &valore_ritorno , sizeof(int) , 0) < 0)
+		char *toSend = encode(&session);
+		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
 		{
 			printf(errore_comunicazione);
+                        free(toSend);
+                        exit(-1);
+
+		}
+                free(toSend);
+		if(recv(sock, &valore_ritorno , sizeof(int) , 0) < 1)
+		{
+			printf(errore_comunicazione);
+                        exit(-1);
+                        
 		}
 		if (valore_ritorno > 0){
 			printf("\n    *****    Accesso effettuato correttamente!    *****\n");
@@ -73,15 +88,18 @@ void insert_message(int sock){
 		fgets(session.argomento1, 512, stdin);
 		printf("\nQuale oggetto vuoi inserire?\n");
 		fgets (session.argomento2, 128, stdin);
-		if(send(sock, &session, sizeof(struct comunicazione) , 0) < 0)
+		char *toSend = encode(&session);
+		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
 		{
-			printf(errore_comunicazione);   
-			return;
+			printf(errore_comunicazione); 
+                                        free(toSend);
+                                            exit(-1);
 		}
-		if(recv(sock , &valore_ritorno , sizeof(int) , 0) < 0)
+                free(toSend);
+		if(recv(sock , &valore_ritorno , sizeof(int) , 0) < 1)
 		{
 			printf(errore_comunicazione);
-			return;
+                                            exit(-1);
 		}
 		if(valore_ritorno == -2){
 			printf(errore_sessione);
@@ -106,17 +124,22 @@ void delete_message(int sock){
 		printf("\nQuale messaggio vuoi eliminare?\n");
 		scanf("%d", &(session.valore_ritorno));
 		fflush(stdin);
+                strcpy(session.argomento1, "NULL");
+                strcpy(session.argomento2, "NULL");
 		int size;
-		if(size = (send(sock, &session, sizeof(struct comunicazione) , 0)) < 0)
+		char *toSend = encode(&session);
+		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
 		{
 			printf(errore_comunicazione);	
-			return;
+                                        free(toSend);
+                                            exit(-1);
 		}
-		
-		if( recv(sock , &valore_ritorno , sizeof(int) , 0) < 0)
+		free(toSend);
+
+		if( recv(sock , &valore_ritorno , sizeof(int) , 0) < 1)
 		{
 			printf(errore_comunicazione);
-			return;
+                                            exit(-1);
 		}
 		if (valore_ritorno > 0){
 			printf("\n    *****    Messaggio eliminato correttamente!    *****\n");
@@ -153,32 +176,40 @@ void see_all_messages(int sock){
 		struct messaggi input;
 		session.operazione = 1;
 		session.valore_ritorno = 0;
+                strcpy(session.argomento1, "NULL");
+                strcpy(session.argomento2, "NULL");
 		int valore_ritorno;
 		int test;
-
-		if(send(sock, &session, sizeof(struct comunicazione) , 0) < 0)
+		char *toSend = encode(&session);
+		if(send(sock, toSend, sizeof(struct comunicazione)+3*sizeof(char)  , 0) < 1)
 		{
-			printf(errore_comunicazione);   
-			return;
-
+                    printf(errore_comunicazione); 
+                    free(toSend);
+                    exit(-1);
 		}
+                
+                free(toSend);
 		int dimensione;
 		recv(sock , &dimensione , sizeof(int), 0);
 		if (dimensione == 0){
-				printf("\n    *****    Nessun messaggio presente!    *****\n");
+                    printf("\n    *****    Nessun messaggio presente!    *****\n");
 			}
 		while(dimensione > 0)
 		{
 		test  = recv(sock , &input , sizeof(struct messaggi) , 0);
+                if (test < 1){
+                    printf(errore_comunicazione);
+                    exit(-1);
+                }
 		dimensione = dimensione - test;
 		printf("\n          ********************\n");
 		printf ("\nMessaggio numero: %d  | Mittente messaggio: %s | Oggetto messaggio: %s\n%s\n", input.id_messaggio, input.mittente, input.oggetto, input.messaggio);
 		printf("          ********************\n");
 		valore_ritorno = 1;
-		if(send(sock, &valore_ritorno, sizeof(int) , 0) < 0)
+		if(send(sock, &valore_ritorno, sizeof(int) , 0) < 1)
 			{
 			printf(errore_comunicazione);   
-			return;
+			exit(-1);
 			}
 			}
 	return;
@@ -197,10 +228,12 @@ int main(int argc , char *argv[])
     {
         printf("Could not create socket");
     }
+    
+    signal(SIGPIPE, SIG_IGN);
      
-    server.sin_addr.s_addr = inet_addr("151.29.60.105");
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
     server.sin_family = AF_INET;
-    server.sin_port = htons( 6000 );
+    server.sin_port = htons( 7000 );
  
     //Connect to remote server
     if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)

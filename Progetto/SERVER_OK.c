@@ -19,7 +19,7 @@
 /*	Codici errore (Corrispondono al valore di ritorno):
  * 	 1 | Operazione effettuata correttamente
  * 
- *  -1 | Accesso già effettuato
+ *      -1 | Accesso già effettuato
  *	-2 | Effettua prima log-in
  *	-3 | Nome utente e Password non trovati
  * 
@@ -36,7 +36,7 @@
  * 	 3 | Rimuovi messaggio -> Argomento1: id_messaggio | Argomento2: NULL
  */ 
  
-pthread_mutex_t *writeFile;
+pthread_mutex_t *fileAccess;
  
 struct comunicazione {
 	int operazione;
@@ -67,7 +67,15 @@ struct utente {
 	};
 	
 __thread struct sessione utente_loggato;
-sem_t semaforo;
+
+void decode(char *buffer, struct comunicazione *struttura){
+
+   struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
+   struttura->valore_ritorno = ntohs(atoi(strtok(NULL, "|")));
+   strcpy(struttura->argomento1, strtok(NULL, "|"));
+   strcpy(struttura->argomento2, strtok(NULL, "|"));
+   free(buffer);
+}
 
 void *recupero_consistenza_informazioni(){
 	
@@ -83,7 +91,7 @@ void *recupero_consistenza_informazioni(){
     }
 
     fseek(infile, -(sizeof(struct messaggi)), SEEK_END);
-	fread(&recupero, sizeof(struct messaggi), 1, infile);
+    fread(&recupero, sizeof(struct messaggi), 1, infile);
     consistenza_sessione = recupero.id_messaggio;
     fclose(infile);
     
@@ -94,28 +102,37 @@ void *recupero_consistenza_informazioni(){
  
 int elimina_messaggio(int id_utente, int id_messaggio){
 	
-	FILE *leggo;
-	FILE *scrivo;
-    pthread_mutex_lock(writeFile);
+    FILE *leggo;
+    FILE *scrivo;
+    pthread_mutex_lock(fileAccess);
     struct messaggi controllo;
   
     leggo = fopen (file_messaggi, "r");
     if (leggo == NULL)
     {
+			pthread_mutex_unlock(fileAccess);
+    fclose(leggo);
+
         return -5; // Errore nell'apertura del file
     }
     
 	scrivo = fopen ("passaggio.dat", "w+");
     if (scrivo == NULL)
     {
+			pthread_mutex_unlock(fileAccess);
+    fclose(scrivo);
+
         return -5; // Errore nell'apertura del file
     }
     
     fseek(leggo, 0, SEEK_END);
     if (ftell(leggo) == 0){
+			pthread_mutex_unlock(fileAccess);
+                            fclose(leggo);
+                            fclose(scrivo);
 		return(-6); // Nessun messaggio presente
 	}
-	fseek(leggo, 0, SEEK_SET);
+    fseek(leggo, 0, SEEK_SET);
     
     int occorrenze_messaggio = 0;
     int occorrenze_utente = 0;
@@ -124,15 +141,18 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 		if(controllo.id_messaggio == id_messaggio){
 			occorrenze_messaggio = 1;
 		}
-		if(controllo.id_utente == id_utente & controllo.id_messaggio == id_messaggio){
-			occorrenze_utente == 1;
+		
+		if(controllo.id_utente == id_utente && controllo.id_messaggio == id_messaggio){
+			occorrenze_utente = 1;
 			continue;
-		}else
-		{
+		}
+		
 		if(fwrite(&controllo, sizeof(struct messaggi), 1, scrivo) == 0){
+			pthread_mutex_unlock(fileAccess);
+                                                    fclose(leggo);
+                            fclose(scrivo);
 			return -7; // Errore nella scrittura su file
 			}
-		}
 		}
         
     fclose(leggo);
@@ -140,7 +160,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     link("passaggio.dat", file_messaggi);
     fclose(scrivo);
 	unlink("passaggio.dat");
-	pthread_mutex_unlock(writeFile);
+	pthread_mutex_unlock(fileAccess);
 
 	
 	if (occorrenze_messaggio == 0){
@@ -153,17 +173,23 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 	}
 
 int controllo_accesso(char *nome_utente, char *password){
-	
-	if(utente_loggato.id_utente_loggato != 0){
+	    pthread_mutex_lock(fileAccess);
+
+ if(utente_loggato.id_utente_loggato != 0){
+         pthread_mutex_unlock(fileAccess);
+
 		return -1; // Utente già loggato
 		}
 
-	FILE *infile;
+    FILE *infile;
     struct utente input;
      
     infile = fopen ("user.dat", "r");
     if (infile == NULL)
     {
+            fclose(infile);
+    pthread_mutex_unlock(fileAccess);
+
         return -5; // Errore nell'apertura del file
     }
      
@@ -171,10 +197,14 @@ int controllo_accesso(char *nome_utente, char *password){
 		if(strcmp((const char*)&(input.nome_utente),(const char *)nome_utente) == 0 & strcmp((const char *)&(input.password_utente), (const char *)password) == 0){
 				utente_loggato.id_utente_loggato = input.id_utente;
 				strcpy(utente_loggato.nome_utente_loggato, input.nome_utente);
-				return input.id_utente;
+				fclose(infile);
+                                    pthread_mutex_unlock(fileAccess);
+
+                                return input.id_utente;
 			}
         }
-    
+        pthread_mutex_unlock(fileAccess);
+
     fclose(infile);
     return -3; // Username o password errati
 	}
@@ -193,38 +223,51 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	strcpy(nuovo_messaggio.oggetto, oggetto);
 	strcpy(nuovo_messaggio.mittente, mittente);
 	
-	    pthread_mutex_lock(writeFile);
+	    pthread_mutex_lock(fileAccess);
 	
 	FILE *outfile;
      
     outfile = fopen (file_messaggi, "a+");
     if (outfile == NULL)
-    {
+    {    fclose(outfile);
+
+		    pthread_mutex_unlock(fileAccess);
+
         return -5; // Errore nell'apertura del file
     }
      
     if (fwrite(&nuovo_messaggio, sizeof(struct messaggi), 1, outfile) < 0){
+		    pthread_mutex_unlock(fileAccess);
+    fclose(outfile);
+
 		return -7; // Errore nella scrittura su file
 		}  
     fclose(outfile);
-    pthread_mutex_unlock(writeFile);
-
+    pthread_mutex_unlock(fileAccess);
+    consistenza_sessione = consistenza_sessione + 1;
     return 1;
 	} 
  
 int leggi_tutti_messaggi(void *socket){
+    pthread_mutex_lock(fileAccess);
+
     FILE *infile;
     struct messaggi input;
     int valore_ritorno;
     infile = fopen (file_messaggi, "r");
     if (infile == NULL)
     {
+            pthread_mutex_unlock(fileAccess);
+
 		return(-5); // Errore nell'apertura del file
     }
     fseek(infile, 0, SEEK_END);
     int size = ftell(infile);
     send(*((int*)socket), &size, sizeof(int) , 0);
     if (ftell(infile) == 0){
+            fclose(infile);
+    pthread_mutex_unlock(fileAccess);
+
 		return(-6); // Nessun messaggio presente
 	}
 	fseek(infile, 0, SEEK_SET);
@@ -232,6 +275,9 @@ int leggi_tutti_messaggi(void *socket){
 		if(send(*((int*)socket), &input, sizeof(struct messaggi) , 0) > 0){
 			if (recv(*((int*)socket) , &valore_ritorno , sizeof(int) , 0) >0 ){
 				if (valore_ritorno != 1){
+                                        fclose(infile);
+    pthread_mutex_unlock(fileAccess);
+
 						return -100;
 					}else{
 						continue;
@@ -240,16 +286,22 @@ int leggi_tutti_messaggi(void *socket){
 		}
 	}
     fclose(infile);
+        pthread_mutex_unlock(fileAccess);
+
     return 0;
 	}
 	
 void *gestore_utente(void *socket){
 	
-	int scelta, valore_ritorno, uscita_thread; int read_size; int *soc = socket;	struct comunicazione ricezione;
-	utente_loggato.id_utente_loggato == 0;	
-	while((read_size = recv(*((int*)socket) , &ricezione, sizeof(struct comunicazione), 0)) > 0 )
+	int scelta, valore_ritorno, uscita_thread, read_size;
+        int *soc = socket;
+        struct comunicazione ricezione;
+	utente_loggato.id_utente_loggato = 0;
+        char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
+	while((read_size = recv(*((int*)socket) , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)) > 0 )
     {
-	scelta = ricezione.operazione;
+        decode(buffer, &ricezione);
+        scelta = ricezione.operazione;
 	switch (scelta) {
 		
 	case 0: // Login
@@ -296,7 +348,7 @@ void *gestore_utente(void *socket){
 		
 	}
 	}
-		return (int *)1;
+        pthread_exit(-1);
 	}
 
 int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_utente){
@@ -366,8 +418,10 @@ int main(int argc , char *argv[])
 		return 0;
 		}
 	}
-	writeFile = malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(writeFile, NULL);
+	fileAccess = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(fileAccess, NULL);
+        signal(SIGPIPE, SIG_IGN);
+
     int socket_desc , socket_cliente , c , read_size;
     struct sockaddr_in server , client;
     char client_message[2000];
@@ -385,7 +439,7 @@ int main(int argc , char *argv[])
     //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 6000 );
+    server.sin_port = htons( 7000 );
      
     //Bind
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
