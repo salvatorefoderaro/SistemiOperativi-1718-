@@ -287,12 +287,17 @@ void *gestore_utente(void *socket){
 	int scelta, valore_ritorno, uscita_thread, read_size;
 	int *soc = socket;
 	struct comunicazione ricezione;
+	char *prova = malloc(1024*sizeof(char));
 	utente_loggato.id_utente_loggato = 0;
 	char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
 	while(recv(*((int*)socket) , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0 )
     {
+		puts("Arrivo?");
         decode(buffer, &ricezione);
+        puts("Decodifico?");
         scelta = ricezione.operazione;
+        sprintf(buffer, "Ho immesso questo: %d", scelta);
+        puts(buffer);
 		switch (scelta) {
 		
 	case 0: // Login
@@ -309,7 +314,6 @@ void *gestore_utente(void *socket){
 	case 1: // Leggi tutti i messaggi
 		leggi_tutti_messaggi(socket);
 		break;
-	
 	
 	case 2: // Inserisci nuovo messaggio
 		if(utente_loggato.id_utente_loggato != 0){
@@ -339,8 +343,8 @@ void *gestore_utente(void *socket){
 			
 		}
 		}
-			pthread_exit(-1);
-			free(buffer);
+	free(buffer);
+	pthread_exit(-1);
 }
 
 int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_utente){
@@ -411,6 +415,7 @@ int main(int argc , char *argv[]){
 	
 	fileAccess = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(fileAccess, NULL);
+	
 	signal(SIGPIPE, SIG_IGN);
 
     int socket_desc , socket_cliente , c , read_size;
@@ -430,7 +435,7 @@ int main(int argc , char *argv[]){
     //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 7000 );
+    server.sin_port = htons( 8000 );
      
     //Bind
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
