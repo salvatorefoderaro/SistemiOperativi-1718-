@@ -15,6 +15,7 @@
 #define fflush(stdin) while(getchar() != '\n')
 #define file_utenti "user.dat"
 #define file_messaggi "messages.dat"
+#define PORTA 20000
  
 /*	Codici errore (Corrispondono al valore di ritorno):
  * 	 1 | Operazione effettuata correttamente
@@ -58,7 +59,7 @@ struct messaggi {
 	char messaggio[512];
 	char oggetto[128];
 	char mittente[64];
-	};
+};
 
 struct utente {
 	int id_utente;
@@ -67,13 +68,45 @@ struct utente {
 	};
 	
 __thread struct sessione utente_loggato;
+__thread char comunicazioneServer[1024];
+__thread int sock;
+__thread struct comunicazione ricezione;
 
-void decode(char *buffer, struct comunicazione *struttura){
+
+void decodeCommunication(char *buffer, struct comunicazione *struttura){
 
    struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
    struttura->valore_ritorno = ntohs(atoi(strtok(NULL, "|")));
    strcpy(struttura->argomento1, strtok(NULL, "|"));
    strcpy(struttura->argomento2, strtok(NULL, "|"));
+}
+
+char *encodeMessage(struct messaggi *struttura){
+
+    char *buffer = malloc(sizeof(struct messaggi)+4*sizeof(char));
+    sprintf(buffer, "%d|%d|%s|%s|%s", htons(struttura->id_messaggio), htons(struttura->id_utente),struttura->messaggio, struttura->mittente, struttura->oggetto);
+    return buffer;  
+}      
+
+int sendThroughSocket(int socket, int size, void *buffer){
+	int nBytes = send(socket, buffer, size, 0);
+	if (nBytes < 1){
+		exit((int)-1);
+	} else if (nBytes != size){
+		exit((int)-1);
+	}
+	return nBytes;
+}
+
+int receiveThroughSocket(int socket, int size, void *buffer){
+	int nBytes;
+	nBytes = recv(socket, buffer , size , 0);
+	if (nBytes < 1){
+		exit((int)-1);
+	} else if (nBytes != size){
+		exit((int)-1);
+	}
+	return nBytes;
 }
 
 void *recupero_consistenza_informazioni(){
@@ -102,22 +135,21 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     FILE *leggo;
     FILE *scrivo;
     pthread_mutex_lock(fileAccess);
+    
     struct messaggi controllo;
-  
     leggo = fopen (file_messaggi, "r");
     if (leggo == NULL)
     {
 		pthread_mutex_unlock(fileAccess);
-		fclose(leggo);
-        return -5; // Errore nell'apertura del file
+        return -5+1000; // Errore nell'apertura del file
     }
     
 	scrivo = fopen ("passaggio.dat", "w+");
     if (scrivo == NULL)
     {
 		pthread_mutex_unlock(fileAccess);
-		fclose(scrivo);
-        return -5; // Errore nell'apertura del file
+		fclose(leggo);
+        return -5+1000; // Errore nell'apertura del file
     }
     
     fseek(leggo, 0, SEEK_END);
@@ -125,29 +157,31 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 		pthread_mutex_unlock(fileAccess);
 		fclose(leggo);
 		fclose(scrivo);
-		return(-6); // Nessun messaggio presente
-	}
-    fseek(leggo, 0, SEEK_SET);
+		return(-6+1000); // Nessun messaggio presente
+    }
     
+    fseek(leggo, 0, SEEK_SET);
     int occorrenze_messaggio = 0;
     int occorrenze_utente = 0;
     
-	while(fread(&controllo, sizeof(struct messaggi), 1, leggo)){
-		if(controllo.id_messaggio == id_messaggio){
-			occorrenze_messaggio = 1;
-		}
-		
-		if(controllo.id_utente == id_utente && controllo.id_messaggio == id_messaggio){
+    while(fread(&controllo, sizeof(struct messaggi), 1, leggo)){
+                if(controllo.id_utente == id_utente && controllo.id_messaggio == id_messaggio){
 			occorrenze_utente = 1;
-			consistenza_sessione = consistenza_sessione - 1;
+                        occorrenze_messaggio = 1;
+                        if (controllo.id_messaggio == consistenza_sessione){
+                            consistenza_sessione = consistenza_sessione - 1;
+                        }
 			continue;
 		}
-		
-		if(fwrite(&controllo, sizeof(struct messaggi), 1, scrivo) == 0){
+                if(controllo.id_messaggio == id_messaggio){
+			occorrenze_messaggio = 1;
+		}
+                
+                if(fwrite(&controllo, sizeof(struct messaggi), 1, scrivo) == 0){
 			pthread_mutex_unlock(fileAccess);
 			fclose(leggo);
 			fclose(scrivo);
-			return -7; // Errore nella scrittura su file
+			return -7+1000; // Errore nella scrittura su file
 		}
 	}
         
@@ -155,16 +189,16 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     unlink(file_messaggi);
     link("passaggio.dat", file_messaggi);
     fclose(scrivo);
-	unlink("passaggio.dat");
-	pthread_mutex_unlock(fileAccess);
+    unlink("passaggio.dat");
+    pthread_mutex_unlock(fileAccess);
 
-	if (occorrenze_messaggio == 0){
-		return -8;
-		}
-	if (occorrenze_messaggio == 1 && occorrenze_utente == 0){
-		return -9;
-		}
-    return 1;
+    if (occorrenze_messaggio == 0){
+            return -8+1000;
+        }
+    if (occorrenze_messaggio == 1 && occorrenze_utente == 0){
+            return -9+1000;
+        }
+    return 1+1000;
 }
 
 int controllo_accesso(char *nome_utente, char *password){
@@ -173,7 +207,7 @@ int controllo_accesso(char *nome_utente, char *password){
 
 	if(utente_loggato.id_utente_loggato != 0){
 		pthread_mutex_unlock(fileAccess);
-		return -1; // Utente già loggato
+		return -1+1000; // Utente già loggato
 	}
 
     FILE *infile;
@@ -184,7 +218,7 @@ int controllo_accesso(char *nome_utente, char *password){
     {
 		fclose(infile);
 		pthread_mutex_unlock(fileAccess);
-        return -5; // Errore nell'apertura del file
+        return -5+1000; // Errore nell'apertura del file
     }
      
     while(fread(&input, sizeof(struct utente), 1, infile)){
@@ -193,18 +227,18 @@ int controllo_accesso(char *nome_utente, char *password){
 			strcpy(utente_loggato.nome_utente_loggato, input.nome_utente);
 			fclose(infile);
 			pthread_mutex_unlock(fileAccess);
-			return input.id_utente;
+			return input.id_utente+1000;
 		}
 	}
 	pthread_mutex_unlock(fileAccess);
     fclose(infile);
-    return -3; // Username o password errati
+    return -3+1000; // Username o password errati
 }
 
 int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, int id_utente_loggato){
 	
 	if(utente_loggato.id_utente_loggato == 0){
-		return -2; // Utente non loggato
+		return -2+1000; // Utente non loggato
 	}
 	
 	// Inserisco il nuovo messaggio
@@ -221,24 +255,22 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
      
     outfile = fopen (file_messaggi, "a+");
     if (outfile == NULL){   
-		 
 		pthread_mutex_unlock(fileAccess);
-        return -5; // Errore nell'apertura del file
+        return -5+1000; // Errore nell'apertura del file
     }
      
     if (fwrite(&nuovo_messaggio, sizeof(struct messaggi), 1, outfile) < 0){
 		pthread_mutex_unlock(fileAccess);
 		fclose(outfile);
-		return -7; // Errore nella scrittura su file
+		return -7+1000; // Errore nella scrittura su file
 	}  
     fclose(outfile);
     pthread_mutex_unlock(fileAccess);
     consistenza_sessione = consistenza_sessione + 1;
-    return 1;
+    return 1+1000;
 } 
  
 int leggi_tutti_messaggi(void *socket){
-	
     pthread_mutex_lock(fileAccess);
     FILE *infile;
     struct messaggi input;
@@ -247,104 +279,132 @@ int leggi_tutti_messaggi(void *socket){
     if (infile == NULL)
     {
 		pthread_mutex_unlock(fileAccess);
-		return(-5); // Errore nell'apertura del file
+		return(-5+1000); // Errore nell'apertura del file
     }
     fseek(infile, 0, SEEK_END);
-    int size = ftell(infile);
-    send(*((int*)socket), &size, sizeof(int) , 0);
+    int size = htons(ftell(infile));
+
+	int nBytes = send(sock, &size, sizeof(int), 0);
+
+	sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", *((int*)socket), ntohs(size));
+	puts(comunicazioneServer);
+	if (nBytes < 1){
+		fclose(infile);
+		pthread_mutex_unlock(fileAccess);
+		exit((int)-1);
+	} else if (nBytes != sizeof(int)){
+		fclose(infile);
+		pthread_mutex_unlock(fileAccess);
+		exit((int)-1);
+	}
     if (ftell(infile) == 0){
 		fclose(infile);
 		pthread_mutex_unlock(fileAccess);
-		return(-6); // Nessun messaggio presente
+		return(-6+1000); // Nessun messaggio presente
 	}
+	
 	fseek(infile, 0, SEEK_SET);
     while(fread(&input, sizeof(struct messaggi), 1, infile)){
-		if(send(*((int*)socket), &input, sizeof(struct messaggi) , 0) > 0){
-			if (recv(*((int*)socket) , &valore_ritorno , sizeof(int) , 0) >0 ){
-				if (valore_ritorno != 1){
+		char *toSend = encodeMessage(&input);
+
+		if(send(sock, toSend, sizeof(struct messaggi)+4*sizeof(char) , 0) > 0){
+			if (recv(sock , &valore_ritorno , sizeof(int) , 0) >0 ){
+				if (ntohs(valore_ritorno) != 1){
 					fclose(infile);
 					pthread_mutex_unlock(fileAccess);
-					return -100;
+					return -100+1000;
 				}else{
 					continue;
 				}		
 			}else{
+				fclose(infile);
 				pthread_mutex_unlock(fileAccess);
-				pthread_exit(-1);
+				pthread_exit((int*)-1);
 				}
 		}else{
+			fclose(infile);
 			pthread_mutex_unlock(fileAccess);
-			pthread_exit(-1);
+			pthread_exit((int*)-1);
 			}
 	}
     fclose(infile);
 	pthread_mutex_unlock(fileAccess);
-    return 0;
+    return 0+1000;
 }
 	
 void *gestore_utente(void *socket){
-	
 	int scelta, valore_ritorno, uscita_thread, read_size;
-	int *soc = socket;
-	struct comunicazione ricezione;
+	sock = *((int*)socket);
 	char *prova = malloc(1024*sizeof(char));
 	utente_loggato.id_utente_loggato = 0;
 	char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
-	while(recv(*((int*)socket) , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0 )
-    {
-		puts("Arrivo?");
-        decode(buffer, &ricezione);
-        puts("Decodifico?");
+    char comunicazioneServer[1024];
+	while(recv(sock , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0){
+        decodeCommunication(buffer, &ricezione);
         scelta = ricezione.operazione;
-        sprintf(buffer, "Ho immesso questo: %d", scelta);
-        puts(buffer);
-		switch (scelta) {
-		
-	case 0: // Login
-		if(utente_loggato.id_utente_loggato == 0){
-		valore_ritorno = controllo_accesso(ricezione.argomento1, ricezione.argomento2);
-		write(*((int*)socket), &valore_ritorno, sizeof(int));
-		break;
-		}else{
-		valore_ritorno = -1;
-		write(*((int*)socket), &valore_ritorno, sizeof(int));
-		break;
-		}
-	
-	case 1: // Leggi tutti i messaggi
-		leggi_tutti_messaggi(socket);
-		break;
-	
-	case 2: // Inserisci nuovo messaggio
-		if(utente_loggato.id_utente_loggato != 0){
-			valore_ritorno = inserisci_nuovo_messaggio(ricezione.argomento1, ricezione.argomento2, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato);
-			write(*((int*)socket), &valore_ritorno, sizeof(int));
-			break;
-		}
-		else
-		{
-			valore_ritorno = -2;
-			write(*((int*)socket), &valore_ritorno, sizeof(int));
-			break;
-		}
-	
-	case 3:	// Elimina messaggio
-		if(utente_loggato.id_utente_loggato != 0){
-			valore_ritorno = elimina_messaggio(utente_loggato.id_utente_loggato, ricezione.valore_ritorno);
-			write(*((int*)socket), &valore_ritorno, sizeof(int));
-			break;
-		}
-		else
-		{
-			valore_ritorno = -2;
-			write(*((int*)socket), &valore_ritorno, sizeof(int));
-			break;
-		}
+        sprintf(comunicazioneServer, "Socket numero: %d | Operazione richiesta: %d", sock, scelta);
+        puts(comunicazioneServer);
+		switch(scelta){
 			
+			case 0: // Login
+				if(utente_loggato.id_utente_loggato == 0){
+					valore_ritorno = controllo_accesso(ricezione.argomento1, ricezione.argomento2);
+					int valore_ritorno1 = htons(valore_ritorno);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno1));
+					puts(comunicazioneServer);
+					break;
+				}else{
+					valore_ritorno = htons(-1+1000);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);
+					break;
+				}
+			
+			case 1: // Leggi tutti i messaggi
+				leggi_tutti_messaggi(socket);
+				break;
+			
+			case 2: // Inserisci nuovo messaggio
+				if(utente_loggato.id_utente_loggato != 0){
+					valore_ritorno = htons(inserisci_nuovo_messaggio(ricezione.argomento1, ricezione.argomento2, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato));
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);				
+					break;
+				}
+				else
+				{
+					valore_ritorno = htons(-2+1000);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);					
+					break;
+				}
+			
+			case 3:	// Elimina messaggio
+				if(utente_loggato.id_utente_loggato != 0){
+					valore_ritorno = htons(elimina_messaggio(utente_loggato.id_utente_loggato, ricezione.valore_ritorno));
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);					
+					break;
+				}
+				else
+				{
+					valore_ritorno = htons(-2+1000);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);					
+					break;
+				}
 		}
-		}
+	}
 	free(buffer);
-	pthread_exit(-1);
+	sprintf(comunicazioneServer, "Socket numero: %d | Connessione interrotta", sock);
+	puts(comunicazioneServer);
+	pthread_exit((int*)-1);
 }
 
 int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_utente){
@@ -387,14 +447,17 @@ int visualizza_utenti(){
         printf ("\n%d | %s | %s\n", input.id_utente, input.nome_utente, input.password_utente);
     }
     fclose(infile);
+    printf("\n");
     return 1;
 }
 	
 void help(){
-	printf("\nUtilizzo: server [opzioni]\nOpzioni:\n  --seeuser                                       Permette di visualizzare la lista degli utenti presenti nel sistema\n  --insertuser id_utente nome_utente password     Permette di inserire un nuovo utente al sistema\n\n");
+	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --seeuser                                       Permette di visualizzare la lista degli utenti presenti nel sistema\n  --insertuser id_utente nome_utente password     Permette di inserire un nuovo utente al sistema\n\n");
 }
 
 int main(int argc , char *argv[]){
+	
+	int porta;
 	
 	if (argc > 1){
 		if (strcmp(argv[1], "--seeuser") == 0){
@@ -410,32 +473,37 @@ int main(int argc , char *argv[]){
 	if(strcmp(argv[1], "--help") == 0){
 		help();
 		return 0;
-		}
+		} else {
+		porta = atoi(argv[1]);
 	}
+	} else {
+		
+	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --help                                          Visualizza tutti i comandi disponibili\n\n");
+		return(-1);
+		
+		}
 	
 	fileAccess = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(fileAccess, NULL);
-	
 	signal(SIGPIPE, SIG_IGN);
 
-    int socket_desc , socket_cliente , c , read_size;
+    int socket_desc , *socket_cliente , c , read_size;
     struct sockaddr_in server , client;
     char client_message[2000];
     pthread_t thread, thread1;
     pthread_create(&thread1, NULL, recupero_consistenza_informazioni, NULL);
-	pthread_join(thread1, NULL);
+    pthread_join(thread1, NULL);
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
     if (socket_desc == -1)
     {
         printf("Could not create socket");
     }
-    puts("Socket created");
      
     //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 8000 );
+    server.sin_port = htons(porta);
      
     //Bind
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
@@ -444,25 +512,31 @@ int main(int argc , char *argv[]){
         perror("bind failed. Error");
         return 1;
     }
-    puts("bind done");
      
     //Listen
     listen(socket_desc , 3);
      
     //Accept and incoming connection
-    puts("Waiting for incoming connections...");
+    puts("\nIn attesa di connessione...");
     c = sizeof(struct sockaddr_in);
      
     //accept connection from an incoming client
     while(1){
-    socket_cliente = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-    if (socket_cliente < 0)
-    {
-        perror("accept failed");
-        return 1;
-    }
-    puts("Connection accepted");
-    pthread_create(&thread, NULL, gestore_utente, (void *)&socket_cliente);
+		
+	socket_cliente = malloc(sizeof(int));
+    *socket_cliente = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+    
+		if (*socket_cliente < 0)
+		{
+			perror("accept failed");
+			return 1;
+		}
+		
+		char comunicazioneConnessione[1024];
+		sprintf(comunicazioneConnessione, "Socket numero: %d | Nuova connessione accettata", *socket_cliente);
+		puts(comunicazioneConnessione);
+		
+		pthread_create(&thread, NULL, gestore_utente, (void*)socket_cliente);
     }
     return 0;
 }

@@ -1,0 +1,8 @@
+called: gcc
+	/media/salvatore/Dati condivisi/Sistemi Operativi/Progetto
+	gcc
+	-o
+	Server
+	SERVER_OK.c
+	-lpthread
+
