@@ -3,11 +3,13 @@
 #include<sys/socket.h>
 #include<arpa/inet.h> //inet_addr
 #include<unistd.h>    //write
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <semaphore.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -20,7 +22,7 @@
 /*	Codici errore (Corrispondono al valore di ritorno):
  * 	 1 | Operazione effettuata correttamente
  * 
- *      -1 | Accesso già effettuato
+ *  -1 | Accesso già effettuato
  *	-2 | Effettua prima log-in
  *	-3 | Nome utente e Password non trovati
  * 
@@ -29,6 +31,7 @@
  * 	-7 | Errore nella scrittura del file
  * 	-8 | Il messaggio non è presente nel sistema
  * 	-9 | Non hai il permesso per eliminare il messaggio!
+ *  -10 | Nome utente già presente!
  *	
  *  Codice operazione:
  *	 0 | Effettua accesso -> Argomento1: nome_utente | Argomento2: password
@@ -46,7 +49,10 @@ struct comunicazione {
 	char argomento2[512];
 	};
  
-int consistenza_sessione;
+struct consistenzaSessione{
+	int lastMessage;
+	int lastUser;
+};
 
 struct sessione {
 	int id_utente_loggato;
@@ -66,12 +72,12 @@ struct utente {
 	char nome_utente[64];
 	char password_utente[64];
 	};
-	
+
+struct consistenzaSessione session;
 __thread struct sessione utente_loggato;
 __thread char comunicazioneServer[1024];
 __thread int sock;
 __thread struct comunicazione ricezione;
-
 
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
 
@@ -111,22 +117,39 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 
 void *recupero_consistenza_informazioni(){
 	
+	// Recupero consistenza messaggi
+	
 	FILE *infile;
-	FILE *infile1;
-    struct messaggi recupero;
+    struct messaggi recuperoMessaggi;
     
     infile = fopen (file_messaggi, "r");
     if (infile == NULL)
     {
-		consistenza_sessione = 0;
+		session.lastMessage = 0;
 		return (int *)-5;
     }
 
     fseek(infile, -(sizeof(struct messaggi)), SEEK_END);
-    fread(&recupero, sizeof(struct messaggi), 1, infile);
-    consistenza_sessione = recupero.id_messaggio;
+    fread(&recuperoMessaggi, sizeof(struct messaggi), 1, infile);
+    session.lastMessage = recuperoMessaggi.id_messaggio;
     fclose(infile);
     
+    // Recuperto consistenza utenti
+	
+    struct utente recuperoUtente;
+    
+    infile = fopen (file_utenti, "r");
+    if (infile == NULL)
+    {
+		session.lastUser = 0;
+		return (int *)-5;
+    }
+
+    fseek(infile, -(sizeof(struct utente)), SEEK_END);
+    fread(&recuperoUtente, sizeof(struct utente), 1, infile);
+    session.lastUser = recuperoUtente.id_utente;
+    fclose(infile);
+	
     return (int *)1;
 	}
 
@@ -166,10 +189,10 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     
     while(fread(&controllo, sizeof(struct messaggi), 1, leggo)){
                 if(controllo.id_utente == id_utente && controllo.id_messaggio == id_messaggio){
-			occorrenze_utente = 1;
+						occorrenze_utente = 1;
                         occorrenze_messaggio = 1;
-                        if (controllo.id_messaggio == consistenza_sessione){
-                            consistenza_sessione = consistenza_sessione - 1;
+                        if (controllo.id_messaggio == session.lastMessage){
+                            session.lastMessage = session.lastMessage - 1;
                         }
 			continue;
 		}
@@ -177,7 +200,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 			occorrenze_messaggio = 1;
 		}
                 
-                if(fwrite(&controllo, sizeof(struct messaggi), 1, scrivo) == 0){
+            if(fwrite(&controllo, sizeof(struct messaggi), 1, scrivo) == 0){
 			pthread_mutex_unlock(fileAccess);
 			fclose(leggo);
 			fclose(scrivo);
@@ -213,13 +236,15 @@ int controllo_accesso(char *nome_utente, char *password){
     FILE *infile;
     struct utente input;
      
-    infile = fopen ("user.dat", "r");
+    infile = fopen ("user.dat", "a+");
     if (infile == NULL)
     {
 		fclose(infile);
 		pthread_mutex_unlock(fileAccess);
         return -5+1000; // Errore nell'apertura del file
     }
+    
+if( access("user.dat", F_OK ) == -1 ) {return -3+1000;}
      
     while(fread(&input, sizeof(struct utente), 1, infile)){
 		if(strcmp((const char*)&(input.nome_utente),(const char *)nome_utente) == 0 & strcmp((const char *)&(input.password_utente), (const char *)password) == 0){
@@ -244,7 +269,7 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	// Inserisco il nuovo messaggio
 	struct messaggi nuovo_messaggio;
 	nuovo_messaggio.id_utente = id_utente_loggato;
-	nuovo_messaggio.id_messaggio = consistenza_sessione + 1;
+	nuovo_messaggio.id_messaggio = session.lastMessage + 1;
 	strcpy(nuovo_messaggio.messaggio, messaggio);
 	strcpy(nuovo_messaggio.oggetto, oggetto);
 	strcpy(nuovo_messaggio.mittente, mittente);
@@ -266,16 +291,47 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	}  
     fclose(outfile);
     pthread_mutex_unlock(fileAccess);
-    consistenza_sessione = consistenza_sessione + 1;
+    session.lastMessage = session.lastMessage + 1;
     return 1+1000;
 } 
+
+int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
+	int id_utente = session.lastUser+1;
+	struct utente nuovo_utente, passaggio;	
+	nuovo_utente.id_utente = id_utente;
+	strcpy(nuovo_utente.nome_utente, nome_utente);
+	strcpy(nuovo_utente.password_utente, password_utente);
+	
+	FILE *outfile;
+     
+    outfile = fopen ("user.dat", "a+");
+    if (outfile == NULL)
+    {
+        printf("\nErrore nell'apertura del file\n");
+        return -5+1000; // Errore nell'apertura del file
+    }
+    
+        while(fread(&passaggio, sizeof(struct utente), 1, outfile)){
+		if(strcmp((const char*)&(passaggio.nome_utente),(const char *)nome_utente) == 0){ // Nome utente già presente
+			return -10+1000; // Errore nome utente già presente
+		}
+	}
+     
+    if(fwrite(&nuovo_utente, sizeof(struct utente), 1, outfile) == 0){
+		printf("\nErrore nella scrittura su file\n");
+		return -7+1000; // Errore nella scrittura su file
+		} 
+	session.lastUser = session.lastUser + 1;
+    fclose(outfile);
+    return 1+1000;
+}
  
 int leggi_tutti_messaggi(void *socket){
     pthread_mutex_lock(fileAccess);
     FILE *infile;
     struct messaggi input;
     int valore_ritorno;
-    infile = fopen (file_messaggi, "r");
+    infile = fopen (file_messaggi, "a+");
     if (infile == NULL)
     {
 		pthread_mutex_unlock(fileAccess);
@@ -399,6 +455,37 @@ void *gestore_utente(void *socket){
 					puts(comunicazioneServer);					
 					break;
 				}
+				
+			case 4: // Registrazione nuovo utente
+			if(utente_loggato.id_utente_loggato == 0){
+					valore_ritorno = inserisci_nuovo_utente(ricezione.argomento1, ricezione.argomento2);
+					int valore_ritorno1 = htons(valore_ritorno);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno1));
+					puts(comunicazioneServer);
+					break;}else{
+					valore_ritorno = htons(-1+1000);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);
+					break;
+						}
+						
+			case 5: // Registrazione nuovo utente
+			if(utente_loggato.id_utente_loggato != 0){
+					utente_loggato.id_utente_loggato = 0;
+					int valore_ritorno1 = htons(1+1000);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno1));
+					puts(comunicazioneServer);
+					break;}
+			else{
+					valore_ritorno = htons(-2+1000);
+					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
+					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					puts(comunicazioneServer);
+					break;
+						}			
 		}
 	}
 	free(buffer);
@@ -407,29 +494,7 @@ void *gestore_utente(void *socket){
 	pthread_exit((int*)-1);
 }
 
-int inserisci_nuovo_utente(int id_utente, char *nome_utente, char *password_utente){
-	
-	struct utente nuovo_utente;
-	
-	nuovo_utente.id_utente = id_utente;
-	strcpy(nuovo_utente.nome_utente, nome_utente);
-	strcpy(nuovo_utente.password_utente, password_utente);
-	
-	FILE *outfile;
-     
-    outfile = fopen ("user.dat", "a+");
-    if (outfile == NULL)
-    {
-        printf("\nErrore nell'apertura del file\n");
-        return -5; // Errore nell'apertura del file
-    }
-     
-    if(fwrite(&nuovo_utente, sizeof(struct utente), 1, outfile) == 0){
-		printf("\nErrore nella scrittura su file\n");
-		return -7; // Errore nella scrittura su file
-		}  
-    fclose(outfile);
-}
+
 
 int visualizza_utenti(){
 	
@@ -452,7 +517,7 @@ int visualizza_utenti(){
 }
 	
 void help(){
-	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --seeuser                                       Permette di visualizzare la lista degli utenti presenti nel sistema\n  --insertuser id_utente nome_utente password     Permette di inserire un nuovo utente al sistema\n\n");
+	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --seeuser                                       Permette di visualizzare la lista degli utenti presenti nel sistema\n\n");
 }
 
 int main(int argc , char *argv[]){
@@ -463,17 +528,17 @@ int main(int argc , char *argv[]){
 		if (strcmp(argv[1], "--seeuser") == 0){
 		visualizza_utenti();
 		return 0;
-		}
+		} 
 	
-	if(strcmp(argv[1], "--insertuser") == 0){
+	/* if(strcmp(argv[1], "--insertuser") == 0){
 		inserisci_nuovo_utente(atoi(argv[2]), argv[3], argv[4]);
 		return 0;
-		}
+		} */
 		
-	if(strcmp(argv[1], "--help") == 0){
+	else if(strcmp(argv[1], "--help") == 0){
 		help();
 		return 0;
-		} else {
+	} else {
 		porta = atoi(argv[1]);
 	}
 	} else {
@@ -522,6 +587,8 @@ int main(int argc , char *argv[]){
      
     //accept connection from an incoming client
     while(1){
+	time_t ltime; /* calendar time */
+    ltime=time(NULL); /* get current cal time */
 		
 	socket_cliente = malloc(sizeof(int));
     *socket_cliente = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
@@ -533,7 +600,7 @@ int main(int argc , char *argv[]){
 		}
 		
 		char comunicazioneConnessione[1024];
-		sprintf(comunicazioneConnessione, "Socket numero: %d | Nuova connessione accettata", *socket_cliente);
+		sprintf(comunicazioneConnessione, "\n%sSocket numero: %d | Nuova connessione accettata", asctime(localtime(&ltime)), *socket_cliente);
 		puts(comunicazioneConnessione);
 		
 		pthread_create(&thread, NULL, gestore_utente, (void*)socket_cliente);

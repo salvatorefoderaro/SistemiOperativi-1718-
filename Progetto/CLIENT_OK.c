@@ -71,6 +71,59 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 	return nBytes;
 }
 
+void registrazione(int sock){
+
+		session.operazione = 4;
+		printf("\nInserisci il nome utente\n");
+		scanf("%s", session.argomento1);
+		printf("\nInserisci la password\n");
+		scanf("%s", session.argomento2);
+		
+		char *toSend = encode(&session);
+		sendThroughSocket(sock, sizeof(struct comunicazione)+3*sizeof(char), toSend);
+		free(toSend);
+		receiveThroughSocket(sock, sizeof(int), &valore_ritorno);
+		valore_ritorno = ntohs(valore_ritorno)  - 1000;
+		
+		if (valore_ritorno > 0){
+			printf("\n    *****    Registrazione effettuata correttamente!    *****\n");
+			return;
+		}else if (valore_ritorno == -1){
+			printf(doppio_login);
+			return;
+		}else if (valore_ritorno == -10){
+			printf("\n    *****    Nome utente già presente    *****\n");
+			return;
+		}else {
+			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+			return;
+		}
+}
+
+void disconnect(int sock){
+
+		session.operazione = 5;
+		strcpy(session.argomento1, "NULL");
+		strcpy(session.argomento2, "NULL");
+		
+		char *toSend = encode(&session);
+		sendThroughSocket(sock, sizeof(struct comunicazione)+3*sizeof(char), toSend);
+		free(toSend);
+		receiveThroughSocket(sock, sizeof(int), &valore_ritorno);
+		valore_ritorno = ntohs(valore_ritorno)  - 1000;
+		
+		if (valore_ritorno > 0){
+			printf("\n    *****    Disconnessione effettuata correttamente!    *****\n");
+			return;
+		}else if (valore_ritorno == -2){
+			printf(errore_sessione);
+			return;
+		} else {
+			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+			return;
+		}
+}
+
 void login(int sock){
 
 		session.operazione = 0;
@@ -224,7 +277,7 @@ int main(int argc , char *argv[]){
     }
     printf("\nConnessione effettuata correttamente, benvenuto nel sistema!");
 	while(1){
-		printf("\n1 - Effettua l'accesso al sistema\n2 - Leggi tutti i messaggi presenti\n3 - Inserisci un nuovo messaggio\n4 - Elimina un messaggio\n5 - Termina esecuzione programma\n\nQuale operazione vuoi eseguire?\n");	
+		printf("\n1 - Effettua l'accesso al sistema\n2 - Leggi tutti i messaggi presenti\n3 - Inserisci un nuovo messaggio\n4 - Elimina un messaggio\n5 - Effettua la registrazione\n6 - Effettua disconnessione\n7 - Termina esecuzione programma\n\nQuale operazione vuoi eseguire?\n");	
 		scanf("%d", &scelta);
 		fflush(stdin);
 	
@@ -245,8 +298,16 @@ int main(int argc , char *argv[]){
 	case 4: // Elimina messaggio
 		delete_message(sock);
 		break;
-				
-	case 5: // Termina esecuzione programma
+	
+	case 5: // Registrazione
+		registrazione(sock);
+		break;
+	
+	case 6: // Disconnessione
+		disconnect(sock);
+		break;
+	
+	case 7: // Termina esecuzione programma
 		close(sock);
 		return 0;
         default:
