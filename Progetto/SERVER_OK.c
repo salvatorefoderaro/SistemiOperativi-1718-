@@ -38,6 +38,8 @@
  *   1 | Leggi tutti i messaggi -> Argomento1: NULL | Argomento2: NULL
  * 	 2 | Inserisci messaggio -> Argomento1: oggetto_messaggio | Argomento2: testo_messaggio
  * 	 3 | Rimuovi messaggio -> Argomento1: id_messaggio | Argomento2: NULL
+ *   4 | Effettua registrazione -> Argomento1: nome_utente | Argomento2: password
+ *   5 | Disconnessione ->	Argomento1: NULL | Argomento2: NULL
  */ 
  
 pthread_mutex_t *fileAccess;
@@ -80,11 +82,16 @@ __thread int sock;
 __thread struct comunicazione ricezione;
 
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
-
+	puts(buffer);
    struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
    struttura->valore_ritorno = ntohs(atoi(strtok(NULL, "|")));
+   
    strcpy(struttura->argomento1, strtok(NULL, "|"));
+   	puts(struttura->argomento1);
+
    strcpy(struttura->argomento2, strtok(NULL, "|"));
+	puts(struttura->argomento2);
+
 }
 
 char *encodeMessage(struct messaggi *struttura){
@@ -574,7 +581,7 @@ int main(int argc , char *argv[]){
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
     {
         //print the error message
-        perror("bind failed. Error");
+        perror("Bind non riuscita");
         return 1;
     }
      
@@ -595,7 +602,7 @@ int main(int argc , char *argv[]){
     
 		if (*socket_cliente < 0)
 		{
-			perror("accept failed");
+			perror("Connessione rifiutata");
 			return 1;
 		}
 		
