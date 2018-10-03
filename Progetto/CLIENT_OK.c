@@ -7,9 +7,10 @@
 #include <arpa/inet.h> //inet_addr
 #include <signal.h>
 #define fflush(stdin) while(getchar() != '\n')
-#define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n"
-#define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n"
-#define errore_login "\n    *****    Username o password errati!    *****\n"
+#define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n\n"
+#define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n\n"
+#define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); system("reset");
+#define errore_login "\n    *****    Username o password errati!    *****\n\n"
 #define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
 
 	struct comunicazione {
@@ -76,8 +77,10 @@ void registrazione(int sock){
 		session.operazione = 4;
 		printf("\nInserisci il nome utente\n");
 		scanf("%s", session.argomento1);
+		fflush(stdin);
 		printf("\nInserisci la password\n");
 		scanf("%s", session.argomento2);
+		fflush(stdin);
 		
 		char *toSend = encode(&session);
 		sendThroughSocket(sock, sizeof(struct comunicazione)+3*sizeof(char), toSend);
@@ -87,15 +90,19 @@ void registrazione(int sock){
 		
 		if (valore_ritorno > 0){
 			printf("\n    *****    Registrazione effettuata correttamente!    *****\n");
+			flushTerminal
 			return;
 		}else if (valore_ritorno == -1){
 			printf(doppio_login);
+			flushTerminal	
 			return;
 		}else if (valore_ritorno == -10){
 			printf("\n    *****    Nome utente già presente    *****\n");
+			flushTerminal
 			return;
 		}else {
 			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+			flushTerminal
 			return;
 		}
 }
@@ -114,12 +121,15 @@ void disconnect(int sock){
 		
 		if (valore_ritorno > 0){
 			printf("\n    *****    Disconnessione effettuata correttamente!    *****\n");
+			flushTerminal
 			return;
 		}else if (valore_ritorno == -2){
 			printf(errore_sessione);
+			flushTerminal
 			return;
 		} else {
 			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+			flushTerminal
 			return;
 		}
 }
@@ -129,26 +139,31 @@ void login(int sock){
 		session.operazione = 0;
 		printf("\nInserisci il nome utente\n");
 		scanf("%s", session.argomento1);
+		fflush(stdin);
 		printf("\nInserisci la password\n");
 		scanf("%s", session.argomento2);
+		fflush(stdin);
 		
 		char *toSend = encode(&session);
 		sendThroughSocket(sock, sizeof(struct comunicazione)+3*sizeof(char), toSend);
 		free(toSend);
 		receiveThroughSocket(sock, sizeof(int), &valore_ritorno);
 		valore_ritorno = ntohs(valore_ritorno)  - 1000;
-		
 		if (valore_ritorno > 0){
-			printf("\n    *****    Accesso effettuato correttamente!    *****\n");
+			printf("\n\n    *****    Accesso effettuato correttamente!    *****\n\n");
+			flushTerminal
 			return;
 		}else if (valore_ritorno == -1){
 			printf(doppio_login);
+			flushTerminal
 			return;
 		} else if (valore_ritorno == -3){
 			printf(errore_login);
+			flushTerminal
 			return;
 		} else {
-			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+			printf("\n\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n\n", valore_ritorno);
+			flushTerminal
 			return;
 		}
 }
@@ -168,12 +183,15 @@ void insert_message(int sock){
 	
 	if(valore_ritorno == -2){
 		printf(errore_sessione);
+		flushTerminal
 		return;
 	} else if(valore_ritorno > 0){
 		printf("\n    *****    Il messaggio è stato inserito correttamente!    *****\n");
+		flushTerminal
 		return;
 	} else{
 		printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+		flushTerminal
 		return;
 	}
 }
@@ -194,21 +212,27 @@ void delete_message(int sock){
 	
 	if (valore_ritorno > 0){
 		printf("\n    *****    Messaggio eliminato correttamente!    *****\n");
+		flushTerminal
 		return;
 	} else if (valore_ritorno == -2){
 		printf(errore_sessione);
+		flushTerminal
 		return;
 	} else if (valore_ritorno == -6){
 		printf("\n    *****    Nessun messaggio presente!    *****\n");
+		flushTerminal
 		return;
 	} else if (valore_ritorno == -8){
 		printf("\n    *****    Il messaggio che vuoi eliminare non è presente!    *****\n");
+		flushTerminal
 		return;
 	} else if (valore_ritorno == -9){
 		printf("\n    *****    Non hai il permesso per eliminare il messaggio!    *****\n");
+		flushTerminal
 		return;
 	} else{
 		printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
+		flushTerminal
 		return;
 	}
 }
@@ -229,6 +253,7 @@ void see_all_messages(int sock){
 	dimensione = ntohs(dimensione);
 	if (dimensione == 0){
 		printf("\n    *****    Nessun messaggio presente!    *****\n");
+		flushTerminal
 	}
 	char *toReceive = malloc(sizeof(struct messaggi)+4*sizeof(char));
 	while(dimensione > 0){
@@ -241,6 +266,7 @@ void see_all_messages(int sock){
 		valore_ritorno = htons(1);
 		sendThroughSocket(sock, sizeof(int), &valore_ritorno);
 	}
+	flushTerminal
 	free(toReceive);
 	return;
 }
@@ -275,6 +301,7 @@ int main(int argc , char *argv[]){
         perror("connect failed. Error");
         return 1;
     }
+    system("reset");
     printf("\nConnessione effettuata correttamente, benvenuto nel sistema!");
 	while(1){
 		printf("\n1 - Effettua l'accesso al sistema\n2 - Leggi tutti i messaggi presenti\n3 - Inserisci un nuovo messaggio\n4 - Elimina un messaggio\n5 - Effettua la registrazione\n6 - Effettua disconnessione\n7 - Termina esecuzione programma\n\nQuale operazione vuoi eseguire?\n");	
@@ -284,30 +311,37 @@ int main(int argc , char *argv[]){
 	switch (scelta) {
 	
 	case 1: // Login
+		system("reset");
 		login(sock);
 		break;
 	
 	case 2: // Leggi tutti i messaggi presenti
+	system("reset");
 		see_all_messages(sock);
 		break;
 	
 	case 3: // Inserimento nuovo messaggio
+	system("reset");
 		insert_message(sock);
 		break;
 	
 	case 4: // Elimina messaggio
+	system("reset");
 		delete_message(sock);
 		break;
 	
 	case 5: // Registrazione
+	system("reset");
 		registrazione(sock);
 		break;
 	
 	case 6: // Disconnessione
+	system("reset");
 		disconnect(sock);
 		break;
 	
 	case 7: // Termina esecuzione programma
+		system("reset");
 		close(sock);
 		return 0;
         default:

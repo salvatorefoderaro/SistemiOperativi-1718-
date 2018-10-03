@@ -82,16 +82,10 @@ __thread int sock;
 __thread struct comunicazione ricezione;
 
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
-	puts(buffer);
    struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
    struttura->valore_ritorno = ntohs(atoi(strtok(NULL, "|")));
-   
    strcpy(struttura->argomento1, strtok(NULL, "|"));
-   	puts(struttura->argomento1);
-
    strcpy(struttura->argomento2, strtok(NULL, "|"));
-	puts(struttura->argomento2);
-
 }
 
 char *encodeMessage(struct messaggi *struttura){
@@ -251,7 +245,9 @@ int controllo_accesso(char *nome_utente, char *password){
         return -5+1000; // Errore nell'apertura del file
     }
     
-if( access("user.dat", F_OK ) == -1 ) {return -3+1000;}
+	if( access("user.dat", F_OK ) == -1 ) {
+	return -3+1000;
+	}
      
     while(fread(&input, sizeof(struct utente), 1, infile)){
 		if(strcmp((const char*)&(input.nome_utente),(const char *)nome_utente) == 0 & strcmp((const char *)&(input.password_utente), (const char *)password) == 0){
@@ -334,6 +330,12 @@ int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
 }
  
 int leggi_tutti_messaggi(void *socket){
+	char buff[20];
+	struct tm *sTm;
+	time_t now = time (0);
+	sTm = gmtime (&now);
+	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
+		
     pthread_mutex_lock(fileAccess);
     FILE *infile;
     struct messaggi input;
@@ -349,7 +351,7 @@ int leggi_tutti_messaggi(void *socket){
 
 	int nBytes = send(sock, &size, sizeof(int), 0);
 
-	sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", *((int*)socket), ntohs(size));
+	sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, *((int*)socket), ntohs(size));
 	puts(comunicazioneServer);
 	if (nBytes < 1){
 		fclose(infile);
@@ -396,6 +398,8 @@ int leggi_tutti_messaggi(void *socket){
 }
 	
 void *gestore_utente(void *socket){
+	char buff[20];
+    struct tm *sTm;
 	int scelta, valore_ritorno, uscita_thread, read_size;
 	sock = *((int*)socket);
 	char *prova = malloc(1024*sizeof(char));
@@ -403,24 +407,29 @@ void *gestore_utente(void *socket){
 	char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
     char comunicazioneServer[1024];
 	while(recv(sock , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0){
-        decodeCommunication(buffer, &ricezione);
-        scelta = ricezione.operazione;
-        sprintf(comunicazioneServer, "Socket numero: %d | Operazione richiesta: %d", sock, scelta);
-        puts(comunicazioneServer);
-		switch(scelta){
+	decodeCommunication(buffer, &ricezione);
+	scelta = ricezione.operazione;
+	time_t now = time (0);
+	sTm = gmtime (&now);
+
+	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
+	sprintf(comunicazioneServer, "%s | Socket numero: %d | Operazione richiesta: %d", buff, sock, scelta);
+	puts(comunicazioneServer);
+	
+	switch(scelta){
 			
 			case 0: // Login
 				if(utente_loggato.id_utente_loggato == 0){
 					valore_ritorno = controllo_accesso(ricezione.argomento1, ricezione.argomento2);
 					int valore_ritorno1 = htons(valore_ritorno);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno1));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno1));
 					puts(comunicazioneServer);
 					break;
 				}else{
 					valore_ritorno = htons(-1+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);
 					break;
 				}
@@ -433,7 +442,7 @@ void *gestore_utente(void *socket){
 				if(utente_loggato.id_utente_loggato != 0){
 					valore_ritorno = htons(inserisci_nuovo_messaggio(ricezione.argomento1, ricezione.argomento2, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato));
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);				
 					break;
 				}
@@ -441,7 +450,7 @@ void *gestore_utente(void *socket){
 				{
 					valore_ritorno = htons(-2+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);					
 					break;
 				}
@@ -450,7 +459,7 @@ void *gestore_utente(void *socket){
 				if(utente_loggato.id_utente_loggato != 0){
 					valore_ritorno = htons(elimina_messaggio(utente_loggato.id_utente_loggato, ricezione.valore_ritorno));
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);					
 					break;
 				}
@@ -458,7 +467,7 @@ void *gestore_utente(void *socket){
 				{
 					valore_ritorno = htons(-2+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);					
 					break;
 				}
@@ -468,12 +477,12 @@ void *gestore_utente(void *socket){
 					valore_ritorno = inserisci_nuovo_utente(ricezione.argomento1, ricezione.argomento2);
 					int valore_ritorno1 = htons(valore_ritorno);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno1));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno1));
 					puts(comunicazioneServer);
 					break;}else{
 					valore_ritorno = htons(-1+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);
 					break;
 						}
@@ -483,28 +492,29 @@ void *gestore_utente(void *socket){
 					utente_loggato.id_utente_loggato = 0;
 					int valore_ritorno1 = htons(1+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno1));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno1));
 					puts(comunicazioneServer);
 					break;}
 			else{
 					valore_ritorno = htons(-2+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "Socket numero: %d | Valore di ritorno inviato: %d", sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
 					puts(comunicazioneServer);
 					break;
-						}			
+			}			
 		}
 	}
+	
+	time_t now = time (0);
+	sTm = gmtime (&now);
+	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
 	free(buffer);
-	sprintf(comunicazioneServer, "Socket numero: %d | Connessione interrotta", sock);
+	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta", buff, sock);
 	puts(comunicazioneServer);
 	pthread_exit((int*)-1);
 }
 
-
-
 int visualizza_utenti(){
-	
 	FILE *infile;
     struct utente input;
     
@@ -528,37 +538,30 @@ void help(){
 }
 
 int main(int argc , char *argv[]){
-	
 	int porta;
-	
 	if (argc > 1){
 		if (strcmp(argv[1], "--seeuser") == 0){
 		visualizza_utenti();
 		return 0;
 		} 
 	
-	/* if(strcmp(argv[1], "--insertuser") == 0){
-		inserisci_nuovo_utente(atoi(argv[2]), argv[3], argv[4]);
-		return 0;
-		} */
-		
 	else if(strcmp(argv[1], "--help") == 0){
 		help();
 		return 0;
 	} else {
 		porta = atoi(argv[1]);
 	}
-	} else {
-		
-	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --help                                          Visualizza tutti i comandi disponibili\n\n");
+	} else {	
+		printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --help                                          Visualizza tutti i comandi disponibili\n\n");
 		return(-1);
-		
-		}
+	}
 	
 	fileAccess = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(fileAccess, NULL);
 	signal(SIGPIPE, SIG_IGN);
 
+	char buff[20];
+    struct tm *sTm;
     int socket_desc , *socket_cliente , c , read_size;
     struct sockaddr_in server , client;
     char client_message[2000];
@@ -606,8 +609,12 @@ int main(int argc , char *argv[]){
 			return 1;
 		}
 		
+		time_t now = time (0);
+		sTm = gmtime (&now);
+
+		strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
 		char comunicazioneConnessione[1024];
-		sprintf(comunicazioneConnessione, "\n%sSocket numero: %d | Nuova connessione accettata", asctime(localtime(&ltime)), *socket_cliente);
+		sprintf(comunicazioneConnessione, "\n%s | Socket numero: %d | Nuova connessione accettata", buff, *socket_cliente);
 		puts(comunicazioneConnessione);
 		
 		pthread_create(&thread, NULL, gestore_utente, (void*)socket_cliente);
