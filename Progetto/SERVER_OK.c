@@ -17,15 +17,12 @@
 #define fflush(stdin) while(getchar() != '\n')
 #define file_utenti "user.dat"
 #define file_messaggi "messages.dat"
-#define PORTA 20000
  
 /*	Codici errore (Corrispondono al valore di ritorno):
- * 	 1 | Operazione effettuata correttamente
  * 
  *  -1 | Accesso già effettuato
  *	-2 | Effettua prima log-in
  *	-3 | Nome utente e Password non trovati
- * 
  *	-5 | Errore nell'apertura del file
  *  -6 | Nessun messaggio presente
  * 	-7 | Errore nella scrittura del file
@@ -54,6 +51,7 @@ struct comunicazione {
 struct consistenzaSessione{
 	int lastMessage;
 	int lastUser;
+	int utenti_connessi;
 };
 
 struct sessione {
@@ -80,23 +78,30 @@ __thread struct sessione utente_loggato;
 __thread char comunicazioneServer[1024];
 __thread int sock;
 __thread struct comunicazione ricezione;
-int utenti_connessi;
 
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
-   struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
-   struttura->valore_ritorno = ntohs(atoi(strtok(NULL, "|")));
-   strcpy(struttura->argomento1, strtok(NULL, "|"));
-   strcpy(struttura->argomento2, strtok(NULL, "|"));
+	/*
+	Decodifica la stringa buffer, inserendo il risultato della tokenizzazione
+	nei vari campi della struttura
+	*/
+	struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
+	struttura->valore_ritorno = ntohs(atoi(strtok(NULL, "|")));
+	strcpy(struttura->argomento1, strtok(NULL, "|"));
+	strcpy(struttura->argomento2, strtok(NULL, "|"));
 }
 
 char *encodeMessage(struct messaggi *struttura){
-
+    /* 
+	Codifica i campi della struttura del tipo messaggio,
+	restituendo una stringa
+	*/
     char *buffer = malloc(sizeof(struct messaggi)+4*sizeof(char));
     sprintf(buffer, "%d|%d|%s|%s|%s", htons(struttura->id_messaggio), htons(struttura->id_utente),struttura->messaggio, struttura->mittente, struttura->oggetto);
     return buffer;  
 }      
 
 int sendThroughSocket(int socket, int size, void *buffer){
+	// Invia, utilizzando il socket indicato, un numero di byte pari a size presenti in buffer
 	int nBytes = send(socket, buffer, size, 0);
 	if (nBytes < 1){
 		exit((int)-1);
@@ -107,6 +112,7 @@ int sendThroughSocket(int socket, int size, void *buffer){
 }
 
 int receiveThroughSocket(int socket, int size, void *buffer){
+	// Riceve, utilizzando il socket indicato, un numero di byte pari a size scrivendoli in buffer
 	int nBytes;
 	nBytes = recv(socket, buffer , size , 0);
 	if (nBytes < 1){
@@ -194,7 +200,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 						occorrenze_utente = 1;
                         occorrenze_messaggio = 1;
                         if (controllo.id_messaggio == session.lastMessage){
-                            session.lastMessage = session.lastMessage - 1;
+                            session.lastMessage = session.lastMessage - 1; // Se messaggio elimino è ultimo, decremento per la consistenza della sessione
                         }
 			continue;
 		}
@@ -217,10 +223,10 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     unlink("passaggio.dat");
     pthread_mutex_unlock(fileAccess);
 
-    if (occorrenze_messaggio == 0){
+    if (occorrenze_messaggio == 0){ // Messaggio non presente
             return -8+1000;
         }
-    if (occorrenze_messaggio == 1 && occorrenze_utente == 0){
+    if (occorrenze_messaggio == 1 && occorrenze_utente == 0){ // Messaggio presente, ma non appartiene all'utente
             return -9+1000;
         }
     return 1+1000;
@@ -256,7 +262,7 @@ int controllo_accesso(char *nome_utente, char *password){
 			strcpy(utente_loggato.nome_utente_loggato, input.nome_utente);
 			fclose(infile);
 			pthread_mutex_unlock(fileAccess);
-			return input.id_utente+1000;
+			return input.id_utente+1000; // Restituisco il nome utente
 		}
 	}
 	pthread_mutex_unlock(fileAccess);
@@ -295,8 +301,8 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	}  
     fclose(outfile);
     pthread_mutex_unlock(fileAccess);
-    session.lastMessage = session.lastMessage + 1;
-    return 1+1000;
+    session.lastMessage = session.lastMessage + 1; // Incremento il valore per la consistenza della sessione
+    return 1+1000; // Messaggio inserito correttamnte
 } 
 
 int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
@@ -325,9 +331,9 @@ int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
 		printf("\nErrore nella scrittura su file\n");
 		return -7+1000; // Errore nella scrittura su file
 		} 
-	session.lastUser = session.lastUser + 1;
+	session.lastUser = session.lastUser + 1; // Incremento per la consistenza della sessione
     fclose(outfile);
-    return 1+1000;
+    return 1+1000; // Registrazione effettuata correttamente
 }
  
 int leggi_tutti_messaggi(void *socket){
@@ -347,9 +353,10 @@ int leggi_tutti_messaggi(void *socket){
 		pthread_mutex_unlock(fileAccess);
 		return(-5+1000); // Errore nell'apertura del file
     }
+
+	// Comunico al Client quanti byte deve leggere
     fseek(infile, 0, SEEK_END);
     int size = htons(ftell(infile));
-
 	int nBytes = send(sock, &size, sizeof(int), 0);
 
 	sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, *((int*)socket), ntohs(size));
@@ -512,10 +519,10 @@ void *gestore_utente(void *socket){
 	free(buffer);
 
 	pthread_mutex_lock(fileAccess);
-		*(&utenti_connessi) = *(&utenti_connessi) - 1;
+			session.utenti_connessi = session.utenti_connessi -1 ;
 	pthread_mutex_unlock(fileAccess);
 
-	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta. Utenti connessi: %d", buff, sock, utenti_connessi);
+	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta. Utenti connessi: %d", buff, sock, session.utenti_connessi);
 	puts(comunicazioneServer);
 	pthread_exit((int*)-1);
 }
@@ -579,7 +586,8 @@ int main(int argc , char *argv[]){
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
     if (socket_desc == -1)
     {
-        printf("Could not create socket");
+        perror("Errore nella creazione del Socket.");
+		return -1;
     }
      
     //Prepare the sockaddr_in structure
@@ -591,7 +599,7 @@ int main(int argc , char *argv[]){
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
     {
         //print the error message
-        perror("Bind non riuscita");
+        perror("Bind non riuscita.");
         return 1;
     }
      
@@ -612,12 +620,12 @@ int main(int argc , char *argv[]){
     
 		if (*socket_cliente < 0)
 		{
-			perror("Connessione rifiutata");
+			perror("Connessione rifiutata.");
 			return 1;
 		}
 		
 		pthread_mutex_lock(fileAccess);
-		*(&utenti_connessi) = *(&utenti_connessi) + 1;
+		session.utenti_connessi = session.utenti_connessi + 1;
 		pthread_mutex_unlock(fileAccess);
 
 		time_t now = time (0);
@@ -625,7 +633,7 @@ int main(int argc , char *argv[]){
 		strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
 		
 		char comunicazioneConnessione[1024];
-		sprintf(comunicazioneConnessione, "\n%s | Socket numero: %d | Nuova connessione accettata. Utenti connessi: %d", buff, *socket_cliente, utenti_connessi);
+		sprintf(comunicazioneConnessione, "\n%s | Socket numero: %d | Nuova connessione accettata. Utenti connessi: %d", buff, *socket_cliente, session.utenti_connessi);
 		puts(comunicazioneConnessione);
 		
 		pthread_create(&thread, NULL, gestore_utente, (void*)socket_cliente);

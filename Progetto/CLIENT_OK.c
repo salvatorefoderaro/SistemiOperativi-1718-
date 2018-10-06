@@ -12,14 +12,15 @@
 #define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); system("reset");
 #define errore_login "\n    *****    Username o password errati!    *****\n\n"
 #define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
-	struct comunicazione {
+
+struct comunicazione {
 	int operazione;
 	int valore_ritorno;
 	char argomento1[512];
 	char argomento2[512];
 	};
 	
-	struct messaggi {
+struct messaggi {
 	int id_utente;
 	int id_messaggio;
 	char messaggio[512];
@@ -27,18 +28,25 @@
 	char mittente[64];
 	};
 	
-	struct comunicazione session;
+struct comunicazione session;
 	char comunicazioneServer[1024];
 	int valore_ritorno;
 	
 char *encode(struct comunicazione *struttura){
-    char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
+    /* 
+	Codifica i campi della struttura del tipo comunicazione,
+	restituendo una stringa
+	*/
+	char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
     sprintf(buffer, "%d|%d|%s|%s", htons(struttura->operazione), htons(struttura->valore_ritorno),struttura->argomento1, struttura->argomento2);
     return buffer;  
 }
 
 void decodeMessage(char *buffer, struct messaggi *struttura){
-
+	/*
+	Decodifica la stringa buffer, inserendo il risultato della tokenizzazione
+	nei vari campi della struttura
+	*/
    struttura->id_messaggio = ntohs(atoi(strtok(buffer, "|")));
    struttura->id_utente = ntohs(atoi(strtok(NULL, "|")));
    strcpy(struttura->messaggio, strtok(NULL, "|"));
@@ -47,6 +55,7 @@ void decodeMessage(char *buffer, struct messaggi *struttura){
 }
  
 int sendThroughSocket(int socket, int size, void *buffer){
+	// Invia, utilizzando il socket indicato, un numero di byte pari a size presenti in buffer
 	int nBytes = send(socket, buffer, size, 0);
 	if (nBytes < 1){
 		printf(errore_comunicazione);
@@ -60,6 +69,7 @@ int sendThroughSocket(int socket, int size, void *buffer){
 }
 
 int receiveThroughSocket(int socket, int size, void *buffer){
+	// Riceve, utilizzando il socket indicato, un numero di byte pari a size scrivendoli in buffer
 	int nBytes;
 	nBytes = recv(socket, buffer , size , 0);
 	if (nBytes < 1){
@@ -72,7 +82,6 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 }
 
 void registrazione(int sock){
-
 		session.operazione = 4;
 		printf("\nInserisci il nome utente\n");
 		scanf("%s", session.argomento1);
@@ -107,7 +116,6 @@ void registrazione(int sock){
 }
 
 void disconnect(int sock){
-
 		session.operazione = 5;
 		strcpy(session.argomento1, "NULL");
 		strcpy(session.argomento2, "NULL");
@@ -285,7 +293,8 @@ int main(int argc , char *argv[]){
     sock = socket(AF_INET , SOCK_STREAM , 0);
     if (sock == -1)
     {
-        printf("Could not create socket");
+        perror("Errore nella creazione del Socket.");
+		return -1;
     }
     
     signal(SIGPIPE, SIG_IGN);
@@ -297,7 +306,7 @@ int main(int argc , char *argv[]){
     //Connect to remote server
     if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
     {
-        perror("connect failed. Error");
+        perror("Connessione fallita.");
         return 1;
     }
     system("reset");
