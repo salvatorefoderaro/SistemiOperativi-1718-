@@ -1,1 +1,0 @@
-gcc -o Server SERVER_OK.c -lpthread

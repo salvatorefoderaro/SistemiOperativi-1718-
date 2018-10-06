@@ -537,7 +537,7 @@ void help(){
 	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --seeuser                                       Permette di visualizzare la lista degli utenti presenti nel sistema\n\n");
 }
 
-int main(int argc , char *argv[]){
+int main(int argc , char *argv[]){			
 	int porta;
 	if (argc > 1){
 		if (strcmp(argv[1], "--seeuser") == 0){

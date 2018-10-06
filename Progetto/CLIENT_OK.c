@@ -12,7 +12,7 @@
 #define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); system("reset");
 #define errore_login "\n    *****    Username o password errati!    *****\n\n"
 #define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
-
+#define ciao "ciao"
 	struct comunicazione {
 	int operazione;
 	int valore_ritorno;
@@ -256,11 +256,11 @@ void see_all_messages(int sock){
 		flushTerminal
 	}
 	char *toReceive = malloc(sizeof(struct messaggi)+4*sizeof(char));
+        printf("\n          ********************\n");
 	while(dimensione > 0){
 		int dataReceived  = receiveThroughSocket(sock, sizeof(struct messaggi)+4*sizeof(char), toReceive);
 		decodeMessage(toReceive, &input);
 		dimensione = dimensione - dataReceived;
-		printf("\n          ********************\n");
 		printf ("\nMessaggio numero: %d  | Mittente messaggio: %s | Oggetto messaggio: %s\n%s\n", input.id_messaggio, input.mittente, input.oggetto, input.messaggio);
 		printf("          ********************\n");
 		valore_ritorno = htons(1);
