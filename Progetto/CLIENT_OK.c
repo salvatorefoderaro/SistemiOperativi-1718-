@@ -12,7 +12,6 @@
 #define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); system("reset");
 #define errore_login "\n    *****    Username o password errati!    *****\n\n"
 #define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
-#define ciao "ciao"
 	struct comunicazione {
 	int operazione;
 	int valore_ritorno;

@@ -80,6 +80,7 @@ __thread struct sessione utente_loggato;
 __thread char comunicazioneServer[1024];
 __thread int sock;
 __thread struct comunicazione ricezione;
+int utenti_connessi;
 
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
    struttura->operazione = ntohs(atoi(strtok(buffer, "|")));
@@ -509,7 +510,12 @@ void *gestore_utente(void *socket){
 	sTm = gmtime (&now);
 	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
 	free(buffer);
-	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta", buff, sock);
+
+	pthread_mutex_lock(fileAccess);
+		*(&utenti_connessi) = *(&utenti_connessi) - 1;
+	pthread_mutex_unlock(fileAccess);
+
+	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta. Utenti connessi: %d", buff, sock, utenti_connessi);
 	puts(comunicazioneServer);
 	pthread_exit((int*)-1);
 }
@@ -563,6 +569,7 @@ int main(int argc , char *argv[]){
 	char buff[20];
     struct tm *sTm;
     int socket_desc , *socket_cliente , c , read_size;
+	int utenti_connessi = 0;
     struct sockaddr_in server , client;
     char client_message[2000];
     pthread_t thread, thread1;
@@ -609,12 +616,16 @@ int main(int argc , char *argv[]){
 			return 1;
 		}
 		
+		pthread_mutex_lock(fileAccess);
+		*(&utenti_connessi) = *(&utenti_connessi) + 1;
+		pthread_mutex_unlock(fileAccess);
+
 		time_t now = time (0);
 		sTm = gmtime (&now);
-
 		strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
+		
 		char comunicazioneConnessione[1024];
-		sprintf(comunicazioneConnessione, "\n%s | Socket numero: %d | Nuova connessione accettata", buff, *socket_cliente);
+		sprintf(comunicazioneConnessione, "\n%s | Socket numero: %d | Nuova connessione accettata. Utenti connessi: %d", buff, *socket_cliente, utenti_connessi);
 		puts(comunicazioneConnessione);
 		
 		pthread_create(&thread, NULL, gestore_utente, (void*)socket_cliente);
