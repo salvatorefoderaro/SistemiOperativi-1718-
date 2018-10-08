@@ -359,8 +359,6 @@ int leggi_tutti_messaggi(void *socket){
     int size = htons(ftell(infile));
 	int nBytes = send(sock, &size, sizeof(int), 0);
 
-	sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, *((int*)socket), ntohs(size));
-	puts(comunicazioneServer);
 	if (nBytes < 1){
 		fclose(infile);
 		pthread_mutex_unlock(fileAccess);
@@ -431,13 +429,13 @@ void *gestore_utente(void *socket){
 					valore_ritorno = controllo_accesso(ricezione.argomento1, ricezione.argomento2);
 					int valore_ritorno1 = htons(valore_ritorno);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno1));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno1)-1000);
 					puts(comunicazioneServer);
 					break;
 				}else{
 					valore_ritorno = htons(-1+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);
 					break;
 				}
@@ -450,7 +448,7 @@ void *gestore_utente(void *socket){
 				if(utente_loggato.id_utente_loggato != 0){
 					valore_ritorno = htons(inserisci_nuovo_messaggio(ricezione.argomento1, ricezione.argomento2, utente_loggato.nome_utente_loggato, utente_loggato.id_utente_loggato));
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);				
 					break;
 				}
@@ -458,7 +456,7 @@ void *gestore_utente(void *socket){
 				{
 					valore_ritorno = htons(-2+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);					
 					break;
 				}
@@ -467,7 +465,7 @@ void *gestore_utente(void *socket){
 				if(utente_loggato.id_utente_loggato != 0){
 					valore_ritorno = htons(elimina_messaggio(utente_loggato.id_utente_loggato, ricezione.valore_ritorno));
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);					
 					break;
 				}
@@ -475,7 +473,7 @@ void *gestore_utente(void *socket){
 				{
 					valore_ritorno = htons(-2+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);					
 					break;
 				}
@@ -485,12 +483,12 @@ void *gestore_utente(void *socket){
 					valore_ritorno = inserisci_nuovo_utente(ricezione.argomento1, ricezione.argomento2);
 					int valore_ritorno1 = htons(valore_ritorno);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno1));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno1)-1000);
 					puts(comunicazioneServer);
 					break;}else{
 					valore_ritorno = htons(-1+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);
 					break;
 						}
@@ -500,13 +498,13 @@ void *gestore_utente(void *socket){
 					utente_loggato.id_utente_loggato = 0;
 					int valore_ritorno1 = htons(1+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno1);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno1));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d", buff,sock, ntohs(valore_ritorno1)-1000);
 					puts(comunicazioneServer);
 					break;}
 			else{
 					valore_ritorno = htons(-2+1000);
 					sendThroughSocket(sock, sizeof(int), &valore_ritorno);
-					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno));
+					sprintf(comunicazioneServer, "%s | Socket numero: %d | Valore di ritorno inviato: %d",buff, sock, ntohs(valore_ritorno)-1000);
 					puts(comunicazioneServer);
 					break;
 			}			
