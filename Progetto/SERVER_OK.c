@@ -39,7 +39,9 @@
  *   5 | Disconnessione ->	Argomento1: NULL | Argomento2: NULL
  */ 
  
-pthread_mutex_t *fileAccess;
+pthread_mutex_t *fileMessagesAccess;
+pthread_mutex_t *fileUsersAccess;
+pthread_mutex_t *counter;
  
 struct comunicazione {
 	int operazione;
@@ -78,6 +80,29 @@ __thread struct sessione utente_loggato;
 __thread char comunicazioneServer[1024];
 __thread int sock;
 __thread struct comunicazione ricezione;
+struct sigaction act;
+
+void gestioneUscita (int signum){
+	printf("\n\nProcedo con la distruzione dei mutex...\n");
+	pthread_mutex_destroy(fileMessagesAccess);
+	pthread_mutex_destroy(fileUsersAccess);
+	pthread_mutex_destroy(counter);
+	printf("\nTermino l'esecuzione...\n");
+	exit(-2);
+	}
+
+void disableBeforeRead(){
+	signal(SIGINT, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	}
+
+void enableAfterRead(){
+	act.sa_handler = gestioneUscita;/* set up signal handler */
+	act.sa_flags = 0;
+	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1)) {
+		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
+	}
+}
 
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
 	/*
@@ -123,7 +148,43 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 	return nBytes;
 }
 
-void *recupero_consistenza_informazioni(){
+void *recupero_consistenza_file(){
+	// Consistenza file messaggi
+	int modulo;
+	FILE *infile;
+    
+    infile = fopen (file_messaggi, "r");
+    if (infile == NULL)
+    {
+		session.lastMessage = 0;
+		pthread_exit((int*)-5);
+    }
+    	fseek(infile, 0, SEEK_END);
+	modulo = ftell(infile) % sizeof(struct messaggi);
+	if (modulo != 0){
+		ftruncate(infile, ftell(infile) - modulo);
+		}
+     fclose(infile);
+     
+     // Consistenza file utenti
+    
+    infile = fopen (file_utenti, "r");
+    if (infile == NULL)
+    {
+		session.lastMessage = 0;
+		pthread_exit((int*)-5);
+    }
+    	fseek(infile, 0, SEEK_END);
+	modulo = ftell(infile) % sizeof(struct utente);
+	if (modulo != 0){
+		ftruncate(infile, ftell(infile) - modulo);
+		}
+     fclose(infile);
+	
+
+}
+	
+void *recupero_consistenza_sessione(){
 	
 	// Recupero consistenza messaggi
 	
@@ -134,8 +195,15 @@ void *recupero_consistenza_informazioni(){
     if (infile == NULL)
     {
 		session.lastMessage = 0;
-		return (int *)-5;
+		pthread_exit((int*)-5);
     }
+    fseek(infile, 0, SEEK_END);
+    if (ftell(infile) == 0){
+		fclose(infile);
+		session.lastMessage = 0;
+		pthread_exit((int*)-5); // Nessun messaggio presente
+    }
+    fseek(infile, 0, SEEK_SET);
 
     fseek(infile, -(sizeof(struct messaggi)), SEEK_END);
     fread(&recuperoMessaggi, sizeof(struct messaggi), 1, infile);
@@ -150,9 +218,15 @@ void *recupero_consistenza_informazioni(){
     if (infile == NULL)
     {
 		session.lastUser = 0;
-		return (int *)-5;
+		pthread_exit((int*)-5);
     }
-
+    fseek(infile, 0, SEEK_END);
+    if (ftell(infile) == 0){
+		fclose(infile);
+		session.lastUser = 0;
+		pthread_exit((int*)-5); // Nessun utente presente
+    }
+    fseek(infile, 0, SEEK_SET);
     fseek(infile, -(sizeof(struct utente)), SEEK_END);
     fread(&recuperoUtente, sizeof(struct utente), 1, infile);
     session.lastUser = recuperoUtente.id_utente;
@@ -165,29 +239,35 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 	
     FILE *leggo;
     FILE *scrivo;
-    pthread_mutex_lock(fileAccess);
+    disableBeforeRead();
+    pthread_mutex_lock(fileMessagesAccess);
     
     struct messaggi controllo;
     leggo = fopen (file_messaggi, "r");
     if (leggo == NULL)
     {
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
+		enableAfterRead();
         return -5+1000; // Errore nell'apertura del file
     }
     
 	scrivo = fopen ("passaggio.dat", "w+");
     if (scrivo == NULL)
     {
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
 		fclose(leggo);
+				enableAfterRead();
+
         return -5+1000; // Errore nell'apertura del file
     }
     
     fseek(leggo, 0, SEEK_END);
     if (ftell(leggo) == 0){
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
 		fclose(leggo);
 		fclose(scrivo);
+				enableAfterRead();
+
 		return(-6+1000); // Nessun messaggio presente
     }
     
@@ -200,7 +280,9 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 						occorrenze_utente = 1;
                         occorrenze_messaggio = 1;
                         if (controllo.id_messaggio == session.lastMessage){
+							pthread_mutex_lock(counter);
                             session.lastMessage = session.lastMessage - 1; // Se messaggio elimino è ultimo, decremento per la consistenza della sessione
+							pthread_mutex_unlock(counter);
                         }
 			continue;
 		}
@@ -209,9 +291,11 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 		}
                 
             if(fwrite(&controllo, sizeof(struct messaggi), 1, scrivo) == 0){
-			pthread_mutex_unlock(fileAccess);
+			pthread_mutex_unlock(fileMessagesAccess);
 			fclose(leggo);
 			fclose(scrivo);
+					enableAfterRead();
+
 			return -7+1000; // Errore nella scrittura su file
 		}
 	}
@@ -221,7 +305,8 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     link("passaggio.dat", file_messaggi);
     fclose(scrivo);
     unlink("passaggio.dat");
-    pthread_mutex_unlock(fileAccess);
+    pthread_mutex_unlock(fileMessagesAccess);
+	enableAfterRead();
 
     if (occorrenze_messaggio == 0){ // Messaggio non presente
             return -8+1000;
@@ -234,10 +319,10 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 
 int controllo_accesso(char *nome_utente, char *password){
 	
-	pthread_mutex_lock(fileAccess);
+	pthread_mutex_lock(fileUsersAccess);
 
 	if(utente_loggato.id_utente_loggato != 0){
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileUsersAccess);
 		return -1+1000; // Utente già loggato
 	}
 
@@ -248,7 +333,7 @@ int controllo_accesso(char *nome_utente, char *password){
     if (infile == NULL)
     {
 		fclose(infile);
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileUsersAccess);
         return -5+1000; // Errore nell'apertura del file
     }
     
@@ -261,11 +346,11 @@ int controllo_accesso(char *nome_utente, char *password){
 			utente_loggato.id_utente_loggato = input.id_utente;
 			strcpy(utente_loggato.nome_utente_loggato, input.nome_utente);
 			fclose(infile);
-			pthread_mutex_unlock(fileAccess);
+			pthread_mutex_unlock(fileUsersAccess);
 			return input.id_utente+1000; // Restituisco il nome utente
 		}
 	}
-	pthread_mutex_unlock(fileAccess);
+	pthread_mutex_unlock(fileUsersAccess);
     fclose(infile);
     return -3+1000; // Username o password errati
 }
@@ -284,55 +369,69 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	strcpy(nuovo_messaggio.oggetto, oggetto);
 	strcpy(nuovo_messaggio.mittente, mittente);
 	
-	pthread_mutex_lock(fileAccess);
+	pthread_mutex_lock(fileMessagesAccess);
 	
 	FILE *outfile;
      
     outfile = fopen (file_messaggi, "a+");
     if (outfile == NULL){   
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
         return -5+1000; // Errore nell'apertura del file
     }
      
     if (fwrite(&nuovo_messaggio, sizeof(struct messaggi), 1, outfile) < 0){
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
 		fclose(outfile);
 		return -7+1000; // Errore nella scrittura su file
 	}  
     fclose(outfile);
-    pthread_mutex_unlock(fileAccess);
+    pthread_mutex_unlock(fileMessagesAccess);
+    pthread_mutex_lock(counter);
     session.lastMessage = session.lastMessage + 1; // Incremento il valore per la consistenza della sessione
+    pthread_mutex_unlock(counter);
     return 1+1000; // Messaggio inserito correttamnte
 } 
 
 int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
+	
 	int id_utente = session.lastUser+1;
 	struct utente nuovo_utente, passaggio;	
 	nuovo_utente.id_utente = id_utente;
 	strcpy(nuovo_utente.nome_utente, nome_utente);
 	strcpy(nuovo_utente.password_utente, password_utente);
 	
+	pthread_mutex_lock(fileUsersAccess);
 	FILE *outfile;
      
     outfile = fopen ("user.dat", "a+");
     if (outfile == NULL)
     {
         printf("\nErrore nell'apertura del file\n");
+        	pthread_mutex_unlock(fileUsersAccess);
+
         return -5+1000; // Errore nell'apertura del file
     }
     
         while(fread(&passaggio, sizeof(struct utente), 1, outfile)){
 		if(strcmp((const char*)&(passaggio.nome_utente),(const char *)nome_utente) == 0){ // Nome utente già presente
+			        	pthread_mutex_unlock(fileUsersAccess);
+
 			return -10+1000; // Errore nome utente già presente
 		}
 	}
      
     if(fwrite(&nuovo_utente, sizeof(struct utente), 1, outfile) == 0){
 		printf("\nErrore nella scrittura su file\n");
+		        	pthread_mutex_unlock(fileUsersAccess);
+
 		return -7+1000; // Errore nella scrittura su file
 		} 
+	pthread_mutex_lock(counter);
 	session.lastUser = session.lastUser + 1; // Incremento per la consistenza della sessione
+    pthread_mutex_unlock(counter);
     fclose(outfile);
+	pthread_mutex_unlock(fileUsersAccess);
+
     return 1+1000; // Registrazione effettuata correttamente
 }
  
@@ -342,15 +441,17 @@ int leggi_tutti_messaggi(void *socket){
 	time_t now = time (0);
 	sTm = gmtime (&now);
 	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
-		
-    pthread_mutex_lock(fileAccess);
+	disableBeforeRead();
+    pthread_mutex_lock(fileMessagesAccess);
     FILE *infile;
     struct messaggi input;
     int valore_ritorno;
     infile = fopen (file_messaggi, "a+");
     if (infile == NULL)
     {
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
+				enableAfterRead();
+
 		return(-5+1000); // Errore nell'apertura del file
     }
 
@@ -361,16 +462,22 @@ int leggi_tutti_messaggi(void *socket){
 
 	if (nBytes < 1){
 		fclose(infile);
-		pthread_mutex_unlock(fileAccess);
-		exit((int)-1);
+		pthread_mutex_unlock(fileMessagesAccess);
+				enableAfterRead();
+
+		return((int)-1);
 	} else if (nBytes != sizeof(int)){
 		fclose(infile);
-		pthread_mutex_unlock(fileAccess);
-		exit((int)-1);
+				enableAfterRead();
+
+		pthread_mutex_unlock(fileMessagesAccess);
+		return((int)-1);
 	}
     if (ftell(infile) == 0){
 		fclose(infile);
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
+				enableAfterRead();
+
 		return(-6+1000); // Nessun messaggio presente
 	}
 	
@@ -382,24 +489,32 @@ int leggi_tutti_messaggi(void *socket){
 			if (recv(sock , &valore_ritorno , sizeof(int) , 0) >0 ){
 				if (ntohs(valore_ritorno) != 1){
 					fclose(infile);
-					pthread_mutex_unlock(fileAccess);
+					pthread_mutex_unlock(fileMessagesAccess);
+							enableAfterRead();
+
 					return -100+1000;
 				}else{
 					continue;
 				}		
 			}else{
 				fclose(infile);
-				pthread_mutex_unlock(fileAccess);
+				pthread_mutex_unlock(fileMessagesAccess);
+						enableAfterRead();
+
 				pthread_exit((int*)-1);
 				}
 		}else{
 			fclose(infile);
-			pthread_mutex_unlock(fileAccess);
+			pthread_mutex_unlock(fileMessagesAccess);
+					enableAfterRead();
+
 			pthread_exit((int*)-1);
 			}
 	}
     fclose(infile);
-	pthread_mutex_unlock(fileAccess);
+	pthread_mutex_unlock(fileMessagesAccess);
+			enableAfterRead();
+
     return 0+1000;
 }
 	
@@ -415,9 +530,9 @@ void *gestore_utente(void *socket){
 	while(recv(sock , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0){
 	decodeCommunication(buffer, &ricezione);
 	scelta = ricezione.operazione;
+	
 	time_t now = time (0);
 	sTm = gmtime (&now);
-
 	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
 	sprintf(comunicazioneServer, "%s | Socket numero: %d | Operazione richiesta: %d", buff, sock, scelta);
 	puts(comunicazioneServer);
@@ -516,9 +631,9 @@ void *gestore_utente(void *socket){
 	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
 	free(buffer);
 
-	pthread_mutex_lock(fileAccess);
-			session.utenti_connessi = session.utenti_connessi -1 ;
-	pthread_mutex_unlock(fileAccess);
+	pthread_mutex_lock(counter);
+	session.utenti_connessi = session.utenti_connessi -1 ;
+	pthread_mutex_unlock(counter);
 
 	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta. Utenti connessi: %d", buff, sock, session.utenti_connessi);
 	puts(comunicazioneServer);
@@ -567,9 +682,21 @@ int main(int argc , char *argv[]){
 		return(-1);
 	}
 	
-	fileAccess = malloc(sizeof(pthread_mutex_t));
-	pthread_mutex_init(fileAccess, NULL);
+	fileMessagesAccess = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(fileMessagesAccess, NULL);
+	fileUsersAccess = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(fileUsersAccess, NULL);
+	counter = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(counter, NULL);
+
+
 	signal(SIGPIPE, SIG_IGN);
+	act.sa_handler = gestioneUscita;/* set up signal handler */
+	act.sa_flags = 0;
+	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1)) {
+		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
+		return -1;
+	}
 
 	char buff[20];
     struct tm *sTm;
@@ -577,8 +704,10 @@ int main(int argc , char *argv[]){
 	int utenti_connessi = 0;
     struct sockaddr_in server , client;
     char client_message[2000];
-    pthread_t thread, thread1;
-    pthread_create(&thread1, NULL, recupero_consistenza_informazioni, NULL);
+    pthread_t thread, thread1, thread2;
+    pthread_create(&thread2, NULL, recupero_consistenza_file, NULL);
+	pthread_join(thread2, NULL);
+	pthread_create(&thread1, NULL, recupero_consistenza_sessione, NULL);
     pthread_join(thread1, NULL);
     //Create socket
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -622,9 +751,9 @@ int main(int argc , char *argv[]){
 			return 1;
 		}
 		
-		pthread_mutex_lock(fileAccess);
+		pthread_mutex_lock(fileMessagesAccess);
 		session.utenti_connessi = session.utenti_connessi + 1;
-		pthread_mutex_unlock(fileAccess);
+		pthread_mutex_unlock(fileMessagesAccess);
 
 		time_t now = time (0);
 		sTm = gmtime (&now);
