@@ -82,7 +82,7 @@ __thread int sock;
 __thread struct comunicazione ricezione;
 struct sigaction act;
 
-void gestioneUscita (int signum){
+void gestioneUscita(int signum){
 	pthread_mutex_lock(fileMessagesAccess);
 	pthread_mutex_lock(fileUsersAccess);
 	pthread_mutex_lock(counter);
