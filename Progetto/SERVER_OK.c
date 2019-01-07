@@ -83,23 +83,30 @@ __thread struct comunicazione ricezione;
 struct sigaction act;
 
 void gestioneUscita (int signum){
+	pthread_mutex_lock(fileMessagesAccess);
+	pthread_mutex_lock(fileUsersAccess);
+	pthread_mutex_lock(counter);
 	printf("\n\nProcedo con la distruzione dei mutex...\n");
 	pthread_mutex_destroy(fileMessagesAccess);
 	pthread_mutex_destroy(fileUsersAccess);
 	pthread_mutex_destroy(counter);
 	printf("\nTermino l'esecuzione...\n");
 	exit(-2);
-	}
+}
 
 void disableBeforeRead(){
-	signal(SIGINT, SIG_IGN);
-	signal(SIGQUIT, SIG_IGN);
+
+	act.sa_handler = SIG_IGN;/* set up signal handler */
+	act.sa_flags = 0;
+	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1) || sigaction(SIGTERM, &act, NULL)) {
+		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
 	}
+}
 
 void enableAfterRead(){
 	act.sa_handler = gestioneUscita;/* set up signal handler */
 	act.sa_flags = 0;
-	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1)) {
+	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1) || sigaction(SIGTERM, &act, NULL)) {
 		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
 	}
 }
@@ -150,19 +157,18 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 
 void *recupero_consistenza_file(){
 	// Consistenza file messaggi
-	int modulo;
+	int resto;
 	FILE *infile;
     
     infile = fopen (file_messaggi, "r");
     if (infile == NULL)
     {
-		session.lastMessage = 0;
 		pthread_exit((int*)-5);
     }
     	fseek(infile, 0, SEEK_END);
-	modulo = ftell(infile) % sizeof(struct messaggi);
-	if (modulo != 0){
-		ftruncate(infile, ftell(infile) - modulo);
+	resto = ftell(infile) % sizeof(struct messaggi);
+	if (resto != 0){
+		truncate(file_messaggi, ftell(infile) - resto);
 		}
      fclose(infile);
      
@@ -175,9 +181,9 @@ void *recupero_consistenza_file(){
 		pthread_exit((int*)-5);
     }
     	fseek(infile, 0, SEEK_END);
-	modulo = ftell(infile) % sizeof(struct utente);
-	if (modulo != 0){
-		ftruncate(infile, ftell(infile) - modulo);
+	resto = ftell(infile) % sizeof(struct utente);
+	if (resto != 0){
+		truncate(file_utenti, ftell(infile) - resto);
 		}
      fclose(infile);
 	
@@ -528,6 +534,9 @@ void *gestore_utente(void *socket){
 	char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
     char comunicazioneServer[1024];
 	while(recv(sock , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0){
+	if (sizeof(buffer) != sizeof(struct comunicazione)+3*sizeof(char)){
+		exit(-1);
+	}
 	decodeCommunication(buffer, &ricezione);
 	scelta = ricezione.operazione;
 	
@@ -693,7 +702,7 @@ int main(int argc , char *argv[]){
 	signal(SIGPIPE, SIG_IGN);
 	act.sa_handler = gestioneUscita;/* set up signal handler */
 	act.sa_flags = 0;
-	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1)) {
+	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1) || (sigaction(SIGTERM, &act, NULL))) {
 		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
 		return -1;
 	}

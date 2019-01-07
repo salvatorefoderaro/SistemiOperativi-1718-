@@ -84,11 +84,9 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 void registrazione(int sock){
 		session.operazione = 4;
 		printf("\nInserisci il nome utente\n");
-		scanf("%s", session.argomento1);
-		fflush(stdin);
+		fgets(session.argomento1, 512, stdin); 
 		printf("\nInserisci la password\n");
-		scanf("%s", session.argomento2);
-		fflush(stdin);
+		fgets(session.argomento2, 512, stdin); 
 		
 		char *toSend = encode(&session);
 		sendThroughSocket(sock, sizeof(struct comunicazione)+3*sizeof(char), toSend);
@@ -145,11 +143,9 @@ void login(int sock){
 
 		session.operazione = 0;
 		printf("\nInserisci il nome utente\n");
-		scanf("%s", session.argomento1);
-		fflush(stdin);
+		fgets(session.argomento1, 512, stdin); 
 		printf("\nInserisci la password\n");
-		scanf("%s", session.argomento2);
-		fflush(stdin);
+		fgets(session.argomento2, 512, stdin); 
 		
 		char *toSend = encode(&session);
 		sendThroughSocket(sock, sizeof(struct comunicazione)+3*sizeof(char), toSend);
@@ -206,8 +202,12 @@ void insert_message(int sock){
 void delete_message(int sock){
 	session.operazione = 3;
 	printf("\nQuale messaggio vuoi eliminare?\n");
-	scanf("%d", &(session.valore_ritorno));
-	fflush(stdin);
+	
+	char messaggio_eliminare[32];
+	fgets(messaggio_eliminare, 32, stdin); 
+	int i_messaggio_eliminare = atoi(messaggio_eliminare);
+	session.valore_ritorno = i_messaggio_eliminare;
+	
 	strcpy(session.argomento1, "NULL");
 	strcpy(session.argomento2, "NULL");
 	
@@ -297,7 +297,12 @@ int main(int argc , char *argv[]){
 		return -1;
     }
     
-    signal(SIGPIPE, SIG_IGN);
+	struct sigaction act;
+	act.sa_handler = SIG_IGN;/* set up signal handler */
+	act.sa_flags = 0;
+	if ((sigemptyset(&act.sa_mask) == -1) || sigaction(SIGPIPE, &act, NULL)) {
+		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
+	}
      
     server.sin_addr.s_addr = inet_addr(argv[1]);
     server.sin_family = AF_INET;
@@ -311,11 +316,11 @@ int main(int argc , char *argv[]){
     }
     system("reset");
     printf("\nConnessione effettuata correttamente, benvenuto nel sistema!");
+	char scelta_utente[32];
 	while(1){
 		printf("\n1 - Effettua l'accesso al sistema\n2 - Leggi tutti i messaggi presenti\n3 - Inserisci un nuovo messaggio\n4 - Elimina un messaggio\n5 - Effettua la registrazione\n6 - Effettua disconnessione\n7 - Termina esecuzione programma\n\nQuale operazione vuoi eseguire?\n");	
-		scanf("%d", &scelta);
-		fflush(stdin);
-	
+		fgets(scelta_utente, 32, stdin);
+	scelta = atoi(scelta_utente);
 	switch (scelta) {
 	
 	case 1: // Login
