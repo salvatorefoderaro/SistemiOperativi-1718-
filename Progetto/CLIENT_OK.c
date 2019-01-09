@@ -288,7 +288,7 @@ void see_all_messages(int sock){
  
 int main(int argc , char *argv[]){
 
-	if (argc < 3){
+	if (argc < 3 || argc > 4){
 	printf("\nUtilizzo: Client [opzioni]\n\nOpzioni:\n  indirizzo numero_porta                                 Efettua la connessione con il Server\n\n");
 		return(-1);
 		}
@@ -305,12 +305,12 @@ int main(int argc , char *argv[]){
 		return -1;
     }
     
-	/* struct sigaction act;
+	struct sigaction act;
 	act.sa_handler = SIG_IGN;
 	act.sa_flags = 0;
 	if ((sigemptyset(&act.sa_mask) == -1) || sigaction(SIGPIPE, &act, NULL)) {
 		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
-	} */
+	}
      
     server.sin_addr.s_addr = inet_addr(argv[1]);
     server.sin_family = AF_INET;

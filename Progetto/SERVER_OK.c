@@ -82,18 +82,6 @@ __thread int sock;
 __thread struct comunicazione ricezione;
 struct sigaction act;
 
-void gestioneUscita(int signum){
-	pthread_mutex_lock(fileMessagesAccess);
-	pthread_mutex_lock(fileUsersAccess);
-	pthread_mutex_lock(counter);
-	printf("\n\nProcedo con la distruzione dei mutex...\n");
-	pthread_mutex_destroy(fileMessagesAccess);
-	pthread_mutex_destroy(fileUsersAccess);
-	pthread_mutex_destroy(counter);
-	printf("\nTermino l'esecuzione...\n");
-	exit(-2);
-}
-
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
 	/*
 	Decodifica la stringa buffer, inserendo il risultato della tokenizzazione
@@ -666,10 +654,17 @@ static void *sig_thread(void *arg)
 
 int main(int argc , char *argv[]){			
 	int porta;
-	if (argc > 1){
+
+	if (argc > 2 || argc == 1){
+
+			printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  indirizzo                    Avvia il server utilizzando la porta indicata \n  --seeuser                    Mostra la lista degli utenti registrati\n");
+			return 0;
+		}
+	
+	if (argc == 2){
 		if (strcmp(argv[1], "--seeuser") == 0){
-		visualizza_utenti();
-		return 0;
+			visualizza_utenti();
+			return 0;
 	} 
 	
 	else if(strcmp(argv[1], "--help") == 0){
@@ -678,10 +673,7 @@ int main(int argc , char *argv[]){
 	} else {
 		porta = atoi(argv[1]);
 	}
-	} else {	
-		printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --help                                          Visualizza tutti i comandi disponibili\n\n");
-		return(-1);
-	}
+	} 
 	
 	fileMessagesAccess = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(fileMessagesAccess, NULL);
@@ -697,7 +689,7 @@ int main(int argc , char *argv[]){
 	sigaddset(&set, SIGTERM);
     pthread_sigmask(SIG_BLOCK, &set, NULL);
 	signal(SIGPIPE, SIG_IGN);
-	pthread_mutex_t threadSegnali;
+	pthread_t threadSegnali;
 	pthread_create(&threadSegnali, NULL, &sig_thread, (void *) &set);
 
 
