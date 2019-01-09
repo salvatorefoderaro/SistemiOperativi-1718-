@@ -754,9 +754,9 @@ int main(int argc , char *argv[]){
 			return 1;
 		}
 		
-		pthread_mutex_lock(fileMessagesAccess);
+		pthread_mutex_lock(counter);
 		session.utenti_connessi = session.utenti_connessi + 1;
-		pthread_mutex_unlock(fileMessagesAccess);
+		pthread_mutex_unlock(counter);
 
 		time_t now = time (0);
 		sTm = gmtime (&now);
