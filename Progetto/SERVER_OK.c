@@ -94,23 +94,6 @@ void gestioneUscita(int signum){
 	exit(-2);
 }
 
-void disableBeforeRead(){
-
-	act.sa_handler = SIG_IGN;/* set up signal handler */
-	act.sa_flags = 0;
-	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1) || sigaction(SIGTERM, &act, NULL)) {
-		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
-	}
-}
-
-void enableAfterRead(){
-	act.sa_handler = gestioneUscita;/* set up signal handler */
-	act.sa_flags = 0;
-	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1) || sigaction(SIGTERM, &act, NULL)) {
-		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
-	}
-}
-
 void decodeCommunication(char *buffer, struct comunicazione *struttura){
 	/*
 	Decodifica la stringa buffer, inserendo il risultato della tokenizzazione
@@ -245,7 +228,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 	
     FILE *leggo;
     FILE *scrivo;
-    disableBeforeRead();
+      
     pthread_mutex_lock(fileMessagesAccess);
     
     struct messaggi controllo;
@@ -253,7 +236,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     if (leggo == NULL)
     {
 		pthread_mutex_unlock(fileMessagesAccess);
-		enableAfterRead();
+	
         return -5+1000; // Errore nell'apertura del file
     }
     
@@ -262,7 +245,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     {
 		pthread_mutex_unlock(fileMessagesAccess);
 		fclose(leggo);
-				enableAfterRead();
+				 
 
         return -5+1000; // Errore nell'apertura del file
     }
@@ -272,7 +255,6 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 		pthread_mutex_unlock(fileMessagesAccess);
 		fclose(leggo);
 		fclose(scrivo);
-				enableAfterRead();
 
 		return(-6+1000); // Nessun messaggio presente
     }
@@ -300,7 +282,6 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 			pthread_mutex_unlock(fileMessagesAccess);
 			fclose(leggo);
 			fclose(scrivo);
-					enableAfterRead();
 
 			return -7+1000; // Errore nella scrittura su file
 		}
@@ -312,7 +293,6 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     fclose(scrivo);
     unlink("passaggio.dat");
     pthread_mutex_unlock(fileMessagesAccess);
-	enableAfterRead();
 
     if (occorrenze_messaggio == 0){ // Messaggio non presente
             return -8+1000;
@@ -447,7 +427,7 @@ int leggi_tutti_messaggi(void *socket){
 	time_t now = time (0);
 	sTm = gmtime (&now);
 	strftime (buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", sTm);
-	disableBeforeRead();
+	  
     pthread_mutex_lock(fileMessagesAccess);
     FILE *infile;
     struct messaggi input;
@@ -456,7 +436,6 @@ int leggi_tutti_messaggi(void *socket){
     if (infile == NULL)
     {
 		pthread_mutex_unlock(fileMessagesAccess);
-				enableAfterRead();
 
 		return(-5+1000); // Errore nell'apertura del file
     }
@@ -469,12 +448,10 @@ int leggi_tutti_messaggi(void *socket){
 	if (nBytes < 1){
 		fclose(infile);
 		pthread_mutex_unlock(fileMessagesAccess);
-				enableAfterRead();
 
 		return((int)-1);
 	} else if (nBytes != sizeof(int)){
 		fclose(infile);
-				enableAfterRead();
 
 		pthread_mutex_unlock(fileMessagesAccess);
 		return((int)-1);
@@ -482,7 +459,6 @@ int leggi_tutti_messaggi(void *socket){
     if (ftell(infile) == 0){
 		fclose(infile);
 		pthread_mutex_unlock(fileMessagesAccess);
-				enableAfterRead();
 
 		return(-6+1000); // Nessun messaggio presente
 	}
@@ -496,7 +472,6 @@ int leggi_tutti_messaggi(void *socket){
 				if (ntohs(valore_ritorno) != 1){
 					fclose(infile);
 					pthread_mutex_unlock(fileMessagesAccess);
-							enableAfterRead();
 
 					return -100+1000;
 				}else{
@@ -505,21 +480,18 @@ int leggi_tutti_messaggi(void *socket){
 			}else{
 				fclose(infile);
 				pthread_mutex_unlock(fileMessagesAccess);
-						enableAfterRead();
 
 				pthread_exit((int*)-1);
 				}
 		}else{
 			fclose(infile);
 			pthread_mutex_unlock(fileMessagesAccess);
-					enableAfterRead();
 
 			pthread_exit((int*)-1);
 			}
 	}
     fclose(infile);
 	pthread_mutex_unlock(fileMessagesAccess);
-			enableAfterRead();
 
     return 0+1000;
 }
@@ -533,10 +505,8 @@ void *gestore_utente(void *socket){
 	utente_loggato.id_utente_loggato = 0;
 	char *buffer = malloc(sizeof(struct comunicazione)+3*sizeof(char));
     char comunicazioneServer[1024];
-	while(recv(sock , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0){
-	if (sizeof(buffer) != sizeof(struct comunicazione)+3*sizeof(char)){
-		exit(-1);
-	}
+	int ricevuti;
+	while(ricevuti = recv(sock , buffer, sizeof(struct comunicazione)+3*sizeof(char), 0)> 0){
 	decodeCommunication(buffer, &ricezione);
 	scelta = ricezione.operazione;
 	
@@ -672,13 +642,35 @@ void help(){
 	printf("\nUtilizzo: Server [opzioni]\n\nOpzioni:\n  numero_porta                                    Avvia il server sulla porta indicata\n  --seeuser                                       Permette di visualizzare la lista degli utenti presenti nel sistema\n\n");
 }
 
+static void *sig_thread(void *arg)
+{
+    sigset_t *set = arg;
+    int s, sig;
+
+   for (;;) {
+        s = sigwait(set, &sig);
+        if (s != 0)
+			exit(-1);
+
+		pthread_mutex_lock(fileMessagesAccess);
+		pthread_mutex_lock(fileUsersAccess);
+		pthread_mutex_lock(counter);
+		printf("\n\nProcedo con la distruzione dei mutex...\n");
+		pthread_mutex_destroy(fileMessagesAccess);
+		pthread_mutex_destroy(fileUsersAccess);
+		pthread_mutex_destroy(counter);
+		printf("\nTermino l'esecuzione...\n");
+		exit(-2);    
+	}
+}
+
 int main(int argc , char *argv[]){			
 	int porta;
 	if (argc > 1){
 		if (strcmp(argv[1], "--seeuser") == 0){
 		visualizza_utenti();
 		return 0;
-		} 
+	} 
 	
 	else if(strcmp(argv[1], "--help") == 0){
 		help();
@@ -698,14 +690,16 @@ int main(int argc , char *argv[]){
 	counter = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(counter, NULL);
 
-
+	sigset_t set;
+	sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGQUIT);
+	sigaddset(&set, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
 	signal(SIGPIPE, SIG_IGN);
-	act.sa_handler = gestioneUscita;/* set up signal handler */
-	act.sa_flags = 0;
-	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1) || (sigaction(SIGQUIT, &act, NULL) == -1) || (sigaction(SIGTERM, &act, NULL))) {
-		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
-		return -1;
-	}
+	pthread_mutex_t threadSegnali;
+	pthread_create(&threadSegnali, NULL, &sig_thread, (void *) &set);
+
 
 	char buff[20];
     struct tm *sTm;

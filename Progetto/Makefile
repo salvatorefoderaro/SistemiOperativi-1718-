@@ -3,3 +3,4 @@ server: SERVER_OK.c
 
 client: CLIENT_OK.c
 	gcc -o Client CLIENT_OK.c -lpthread
+	

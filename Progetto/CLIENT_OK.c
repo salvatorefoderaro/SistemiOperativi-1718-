@@ -6,6 +6,13 @@
 #include <sys/socket.h>    //socket
 #include <arpa/inet.h> //inet_addr
 #include <signal.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <errno.h>
+
 #define fflush(stdin) while(getchar() != '\n')
 #define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n\n"
 #define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n\n"
@@ -58,6 +65,7 @@ int sendThroughSocket(int socket, int size, void *buffer){
 	// Invia, utilizzando il socket indicato, un numero di byte pari a size presenti in buffer
 	int nBytes = send(socket, buffer, size, 0);
 	if (nBytes < 1){
+		printf("\nArrivo qui!\n");
 		printf(errore_comunicazione);
 		free(buffer);
 		exit(-1);
@@ -72,6 +80,7 @@ int receiveThroughSocket(int socket, int size, void *buffer){
 	// Riceve, utilizzando il socket indicato, un numero di byte pari a size scrivendoli in buffer
 	int nBytes;
 	nBytes = recv(socket, buffer , size , 0);
+
 	if (nBytes < 1){
 		printf(errore_comunicazione);
 		exit(-1);     
@@ -277,8 +286,50 @@ void see_all_messages(int sock){
 	free(toReceive);
 	return;
 }
+
+static void *
+sig_thread(void *arg)
+{
+	printf("\n\nWewew\n\n");
+    sigset_t *set = arg;
+    int s, sig;
+
+   for (;;) {
+        s = sigwait(set, &sig);
+        if (s != 0)
+			exit(-1);
+        printf("Signal handling thread got signal %d\n", sig);
+    }
+}
  
 int main(int argc , char *argv[]){
+
+
+
+
+
+
+
+	pthread_t thread;
+    sigset_t set;
+    int s;
+
+
+   sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGUSR1);
+    s = pthread_sigmask(SIG_BLOCK, &set, NULL);
+    if (s != 0)
+		exit(-1);
+   s = pthread_create(&thread, NULL, &sig_thread, (void *) &set);
+    if (s != 0)
+		exit(-1);
+
+
+
+
+
+
 	
 	if (argc < 3){
 	printf("\nUtilizzo: Client [opzioni]\n\nOpzioni:\n  indirizzo numero_porta                                 Efettua la connessione con il Server\n\n");
@@ -297,12 +348,12 @@ int main(int argc , char *argv[]){
 		return -1;
     }
     
-	struct sigaction act;
-	act.sa_handler = SIG_IGN;/* set up signal handler */
+	/* struct sigaction act;
+	act.sa_handler = SIG_IGN;
 	act.sa_flags = 0;
 	if ((sigemptyset(&act.sa_mask) == -1) || sigaction(SIGPIPE, &act, NULL)) {
 		printf("\nErrore nell'inizializzazione del gestore dei segnali...\n");
-	}
+	} */
      
     server.sin_addr.s_addr = inet_addr(argv[1]);
     server.sin_family = AF_INET;
