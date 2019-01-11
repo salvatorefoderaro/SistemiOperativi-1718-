@@ -29,7 +29,7 @@
  * 	-8 | Il messaggio non è presente nel sistema
  * 	-9 | Non hai il permesso per eliminare il messaggio!
  *  -10 | Nome utente già presente!
- *	
+ *  -11 | Stringa vuota non permessa
  *  Codice operazione:
  *	 0 | Effettua accesso -> Argomento1: nome_utente | Argomento2: password
  *   1 | Leggi tutti i messaggi -> Argomento1: NULL | Argomento2: NULL
@@ -293,6 +293,10 @@ int elimina_messaggio(int id_utente, int id_messaggio){
 
 int controllo_accesso(char *nome_utente, char *password){
 	
+	if(nome_utente[0] == '\n'){
+		return -11+1000;
+	}
+
 	pthread_mutex_lock(fileUsersAccess);
 
 	if(utente_loggato.id_utente_loggato != 0){
@@ -314,7 +318,7 @@ int controllo_accesso(char *nome_utente, char *password){
 	if( access("user.dat", F_OK ) == -1 ) {
 	return -3+1000;
 	}
-     
+
     while(fread(&input, sizeof(struct utente), 1, infile)){
 		if(strcmp((const char*)&(input.nome_utente),(const char *)nome_utente) == 0 & strcmp((const char *)&(input.password_utente), (const char *)password) == 0){
 			utente_loggato.id_utente_loggato = input.id_utente;
@@ -324,6 +328,7 @@ int controllo_accesso(char *nome_utente, char *password){
 			return input.id_utente+1000; // Restituisco il nome utente
 		}
 	}
+
 	pthread_mutex_unlock(fileUsersAccess);
     fclose(infile);
     return -3+1000; // Username o password errati
@@ -342,6 +347,10 @@ int inserisci_nuovo_messaggio(char *messaggio, char *oggetto, char *mittente, in
 	strcpy(nuovo_messaggio.messaggio, messaggio);
 	strcpy(nuovo_messaggio.oggetto, oggetto);
 	strcpy(nuovo_messaggio.mittente, mittente);
+
+		if(messaggio[0] == '\n' || oggetto[0] == '\n'){
+		return -11+1000;
+	}
 	
 	pthread_mutex_lock(fileMessagesAccess);
 	
@@ -374,6 +383,10 @@ int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
 	strcpy(nuovo_utente.nome_utente, nome_utente);
 	strcpy(nuovo_utente.password_utente, password_utente);
 	
+	if(nome_utente[0] == '\n'){
+		return -11+1000;
+	}
+
 	pthread_mutex_lock(fileUsersAccess);
 	FILE *outfile;
      
@@ -385,6 +398,7 @@ int inserisci_nuovo_utente(char *nome_utente, char *password_utente){
 
         return -5+1000; // Errore nell'apertura del file
     }
+
     
         while(fread(&passaggio, sizeof(struct utente), 1, outfile)){
 		if(strcmp((const char*)&(passaggio.nome_utente),(const char *)nome_utente) == 0){ // Nome utente già presente
@@ -634,8 +648,7 @@ static void *sig_thread(void *arg)
 {
     sigset_t *set = arg;
     int s, sig;
-
-   for (;;) {
+	
         s = sigwait(set, &sig);
         if (s != 0)
 			exit(-1);
@@ -649,7 +662,7 @@ static void *sig_thread(void *arg)
 		pthread_mutex_destroy(counter);
 		printf("\nTermino l'esecuzione...\n");
 		exit(-2);    
-	}
+	
 }
 
 int main(int argc , char *argv[]){			
@@ -704,7 +717,7 @@ int main(int argc , char *argv[]){
 	pthread_join(thread2, NULL);
 	pthread_create(&thread1, NULL, recupero_consistenza_sessione, NULL);
     pthread_join(thread1, NULL);
-    //Create socket
+
     socket_desc = socket(AF_INET , SOCK_STREAM , 0);
     if (socket_desc == -1)
     {
@@ -712,27 +725,21 @@ int main(int argc , char *argv[]){
 		return -1;
     }
      
-    //Prepare the sockaddr_in structure
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(porta);
      
-    //Bind
     if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
     {
-        //print the error message
         perror("Bind non riuscita.");
         return 1;
     }
      
-    //Listen
     listen(socket_desc , 3);
      
-    //Accept and incoming connection
     puts("\nIn attesa di connessione...");
     c = sizeof(struct sockaddr_in);
      
-    //accept connection from an incoming client
     while(1){
 	time_t ltime; /* calendar time */
     ltime=time(NULL); /* get current cal time */

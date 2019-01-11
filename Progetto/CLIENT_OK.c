@@ -110,11 +110,11 @@ void registrazione(int sock){
 			printf(doppio_login);
 			flushTerminal	
 			return;
-		}else if (valore_ritorno == -10){
-			printf("\n    *****    Nome utente già presente    *****\n");
+		}else if (valore_ritorno == -11){
+			printf("\n    *****    Stringa vuota non permessa!    *****\n");
 			flushTerminal
 			return;
-		}else {
+			}else {
 			printf("\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n", valore_ritorno);
 			flushTerminal
 			return;
@@ -194,6 +194,10 @@ void insert_message(int sock){
 	
 	if(valore_ritorno == -2){
 		printf(errore_sessione);
+		flushTerminal
+		return;
+	} else if (valore_ritorno == -11){
+		printf("\n    *****    Stringa vuota non permessa!    *****\n");
 		flushTerminal
 		return;
 	} else if(valore_ritorno > 0){
