@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <stdio.h> //printf
-#include <string.h>    //strlen
-#include <sys/socket.h>    //socket
-#include <arpa/inet.h> //inet_addr
+#include <stdio.h> 
+#include <string.h>    
+#include <sys/socket.h>    
+#include <arpa/inet.h> 
 #include <signal.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@
 #define fflush(stdin) while(getchar() != '\n')
 #define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n\n"
 #define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n\n"
-#define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); system("reset");
+#define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); printf("\e[1;1H\e[2J");
 #define errore_login "\n    *****    Username o password errati!    *****\n\n"
 #define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
 
@@ -336,37 +336,37 @@ int main(int argc , char *argv[]){
 	switch (scelta) {
 	
 	case 1: // Login
-		system("reset");
+		flushTerminal 
 		login(sock);
 		break;
 	
 	case 2: // Leggi tutti i messaggi presenti
-	system("reset");
+		flushTerminal 
 		see_all_messages(sock);
 		break;
 	
 	case 3: // Inserimento nuovo messaggio
-	system("reset");
+		flushTerminal 
 		insert_message(sock);
 		break;
 	
 	case 4: // Elimina messaggio
-	system("reset");
+		flushTerminal 
 		delete_message(sock);
 		break;
 	
 	case 5: // Registrazione
-	system("reset");
+		flushTerminal 
 		registrazione(sock);
 		break;
 	
 	case 6: // Disconnessione
-	system("reset");
+		flushTerminal 
 		disconnect(sock);
 		break;
 	
 	case 7: // Termina esecuzione programma
-		system("reset");
+		flushTerminal 
 		close(sock);
 		return 0;
         default:

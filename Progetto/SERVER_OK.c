@@ -1,8 +1,8 @@
 #include<stdio.h>
-#include<string.h>    //strlen
+#include<string.h>    
 #include<sys/socket.h>
-#include<arpa/inet.h> //inet_addr
-#include<unistd.h>    //write
+#include<arpa/inet.h> 
+#include<unistd.h>    
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +30,7 @@
  * 	-9 | Non hai il permesso per eliminare il messaggio!
  *  -10 | Nome utente già presente!
  *  -11 | Stringa vuota non permessa
+ * 
  *  Codice operazione:
  *	 0 | Effettua accesso -> Argomento1: nome_utente | Argomento2: password
  *   1 | Leggi tutti i messaggi -> Argomento1: NULL | Argomento2: NULL
@@ -628,7 +629,6 @@ int visualizza_utenti(){
     infile = fopen (file_utenti, "r");
     if (infile == NULL)
     {
-        printf("\nErrore nell'apertura del file\n");
 		return(-5);
     }
     printf("\nID Utente | Nome utente | Password utente\n");
