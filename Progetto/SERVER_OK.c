@@ -619,6 +619,7 @@ void *gestore_utente(void *socket){
 
 	sprintf(comunicazioneServer, "%s | Socket numero: %d | Connessione interrotta. Utenti connessi: %d", buff, sock, session.utenti_connessi);
 	puts(comunicazioneServer);
+	close(sock);
 	pthread_exit((int*)-1);
 }
 
