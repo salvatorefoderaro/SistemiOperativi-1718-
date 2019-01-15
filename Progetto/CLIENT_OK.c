@@ -13,12 +13,14 @@
 #include <signal.h>
 #include <errno.h>
 
-#define fflush(stdin) while(getchar() != '\n')
+#define fflush(stdin) 
 #define doppio_login "\n    *****    Il login è stato già effettuato!    *****\n\n"
 #define errore_sessione "\n    *****    Per eseguire quest'operazione, effettua prima l'accesso!    *****\n\n"
-#define flushTerminal printf("\nPremi un tasto per continuare..."); getchar(); printf("\e[1;1H\e[2J");
+#define flushTerminal printf("\nPremi invio per continuare..."); while(getchar() != '\n');  printf("\e[1;1H\e[2J");
+#define flush_terminal_no_input printf("\e[1;1H\e[2J");
 #define errore_login "\n    *****    Username o password errati!    *****\n\n"
 #define errore_comunicazione "\n    *****    Errore nella comunicazione con il server!    *****\n\n"
+#define errore_stringa_vuota "\n    *****    Non è consensita una stringa vuota per l'operazione!    *****\n\n"
 
 struct comunicazione {
 	int operazione;
@@ -172,7 +174,11 @@ void login(int sock){
 			printf(errore_login);
 			flushTerminal
 			return;
-		} else {
+		} else if (valore_ritorno == -11){
+			printf(errore_stringa_vuota);
+			flushTerminal
+			return;
+		}else {
 			printf("\n\n    *****    Errore nella richiesta. Codice di errore: %d    *****\n\n", valore_ritorno);
 			flushTerminal
 			return;
@@ -197,7 +203,7 @@ void insert_message(int sock){
 		flushTerminal
 		return;
 	} else if (valore_ritorno == -11){
-		printf("\n    *****    Stringa vuota non permessa!    *****\n");
+		printf(errore_stringa_vuota);
 		flushTerminal
 		return;
 	} else if(valore_ritorno > 0){
@@ -273,6 +279,7 @@ void see_all_messages(int sock){
 	if (dimensione == 0){
 		printf("\n    *****    Nessun messaggio presente!    *****\n");
 		flushTerminal
+		return;
 	}
 	char *toReceive = malloc(sizeof(struct messaggi)+4*sizeof(char));
         printf("\n          ********************\n");
@@ -326,8 +333,8 @@ int main(int argc , char *argv[]){
         perror("Connessione fallita.");
         return 1;
     }
-    system("reset");
-    printf("\nConnessione effettuata correttamente, benvenuto nel sistema!");
+	flush_terminal_no_input
+    printf("\nConnessione effettuata correttamente, benvenuto nel sistema!\n");
 	char scelta_utente[32];
 	while(1){
 		printf("\n1 - Effettua l'accesso al sistema\n2 - Leggi tutti i messaggi presenti\n3 - Inserisci un nuovo messaggio\n4 - Elimina un messaggio\n5 - Effettua la registrazione\n6 - Effettua disconnessione\n7 - Termina esecuzione programma\n\nQuale operazione vuoi eseguire?\n");	
@@ -336,41 +343,42 @@ int main(int argc , char *argv[]){
 	switch (scelta) {
 	
 	case 1: // Login
-		flushTerminal 
+	flush_terminal_no_input
 		login(sock);
 		break;
 	
 	case 2: // Leggi tutti i messaggi presenti
-		flushTerminal 
+		flush_terminal_no_input
 		see_all_messages(sock);
 		break;
 	
 	case 3: // Inserimento nuovo messaggio
-		flushTerminal 
+		flush_terminal_no_input
 		insert_message(sock);
 		break;
 	
 	case 4: // Elimina messaggio
-		flushTerminal 
+		flush_terminal_no_input
 		delete_message(sock);
 		break;
 	
 	case 5: // Registrazione
-		flushTerminal 
+		flush_terminal_no_input
 		registrazione(sock);
 		break;
 	
 	case 6: // Disconnessione
-		flushTerminal 
+		flush_terminal_no_input
 		disconnect(sock);
 		break;
 	
 	case 7: // Termina esecuzione programma
-		flushTerminal 
+		flush_terminal_no_input
 		close(sock);
 		return 0;
         default:
                 printf("\nInserisci un numero corretto per continuare!\n");
+				flushTerminal
                 break;
 		}
 	}

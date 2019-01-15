@@ -252,6 +252,7 @@ int elimina_messaggio(int id_utente, int id_messaggio){
     int occorrenze_messaggio = 0;
     int occorrenze_utente = 0;
     
+	// Leggo tutto il file dei messaggi
     while(fread(&controllo, sizeof(struct messaggi), 1, leggo)){
                 if(controllo.id_utente == id_utente && controllo.id_messaggio == id_messaggio){
 						occorrenze_utente = 1;
@@ -320,6 +321,7 @@ int controllo_accesso(char *nome_utente, char *password){
 	return -3+1000;
 	}
 
+	// Cerco occorrenze di nome utente e password nel file degli utenti
     while(fread(&input, sizeof(struct utente), 1, infile)){
 		if(strcmp((const char*)&(input.nome_utente),(const char *)nome_utente) == 0 & strcmp((const char *)&(input.password_utente), (const char *)password) == 0){
 			utente_loggato.id_utente_loggato = input.id_utente;
